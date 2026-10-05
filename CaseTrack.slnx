@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CaseTrack.Api/CaseTrack.Api.csproj" Id="e76044a6-f49e-4f26-a697-ad9555f19431" />
+  <Project Path="CaseTrack.Domain/CaseTrack.Domain.csproj" Id="bd49457d-2bd5-4be9-9274-d53b8af57dd4" />
+  <Project Path="CaseTrack.Infrastructure/CaseTrack.Infrastructure.csproj" Id="5f2d3505-5232-41d3-8cf3-fedd4632045b" />
+  <Project Path="CaseTrack.Tests/CaseTrack.Tests.csproj" Id="10d83ac2-dda7-4bbc-a93e-06a1730bc59a" />
+</Solution>
