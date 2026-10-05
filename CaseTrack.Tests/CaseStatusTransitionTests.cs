@@ -4,6 +4,8 @@ namespace CaseTrack.Tests;
 
 public class CaseStatusTransitionTests
 {
+    private static readonly DateTimeOffset Now = new(2026, 10, 5, 9, 0, 0, TimeSpan.FromHours(8));
+
     // ── 建立 ─────────────────────────────────────────────
 
     [Fact]
@@ -12,6 +14,7 @@ public class CaseStatusTransitionTests
         var @case = CreateTestCase();
 
         Assert.Equal(CaseStatus.Submitted, @case.Status);
+        Assert.Empty(@case.SupplementRequests);
     }
 
     // 這裡要測的就是參數本身，所以直接 new，不藏進 helper
@@ -38,40 +41,6 @@ public class CaseStatusTransitionTests
     }
 
     [Fact]
-    public void RequestSupplement_WhenUnderReview_StatusIsAwaitingSupplement()
-    {
-        var @case = CreateCaseInStatus(CaseStatus.UnderReview);
-
-        @case.RequestSupplement("Need more information.");
-
-        Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
-        Assert.Equal("Need more information.", @case.SupplementReason);
-    }
-
-    [Fact]
-    public void SubmitSupplement_WhenAwaitingSupplement_StatusIsUnderReview()
-    {
-        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-
-        @case.SubmitSupplement();
-
-        Assert.Equal(CaseStatus.UnderReview, @case.Status);
-    }
-
-    // 補件可以來回多次；目前只保留最後一次的原因，之後重構成集合時要改這個測試
-    [Fact]
-    public void RequestSupplement_WhenRequestedAgainAfterSubmission_KeepsLatestReason()
-    {
-        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-        @case.SubmitSupplement();
-
-        @case.RequestSupplement("Still missing photos.");
-
-        Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
-        Assert.Equal("Still missing photos.", @case.SupplementReason);
-    }
-
-    [Fact]
     public void Close_WhenUnderReview_StatusIsClosed()
     {
         var @case = CreateCaseInStatus(CaseStatus.UnderReview);
@@ -95,6 +64,119 @@ public class CaseStatusTransitionTests
         Assert.Equal("Not our department.", @case.RejectionReason);
     }
 
+    // ── 補件紀錄 ─────────────────────────────────────────
+
+    [Fact]
+    public void RequestSupplement_WhenUnderReview_AddsOpenRequest()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.UnderReview);
+
+        @case.RequestSupplement("Need more information.", Now);
+
+        Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
+        var request = Assert.Single(@case.SupplementRequests);
+        Assert.Equal(1, request.Sequence);
+        Assert.Equal("Need more information.", request.Reason);
+        Assert.Equal(Now, request.RequestedAt);
+        Assert.Null(request.SubmittedAt);
+    }
+
+    [Fact]
+    public void SubmitSupplement_WhenAwaitingSupplement_MarksRequestSubmitted()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+
+        @case.SubmitSupplement(Now.AddDays(1));
+
+        Assert.Equal(CaseStatus.UnderReview, @case.Status);
+        var request = Assert.Single(@case.SupplementRequests);
+        Assert.Equal(Now.AddDays(1), request.SubmittedAt);
+    }
+
+    // 邊界值：同一時間補件是允許的（規則是「不能早於」）
+    [Fact]
+    public void SubmitSupplement_AtSameTimeAsRequested_Succeeds()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+
+        @case.SubmitSupplement(Now);
+
+        Assert.Equal(Now, Assert.Single(@case.SupplementRequests).SubmittedAt);
+    }
+
+    [Fact]
+    public void SubmitSupplement_BeforeRequestedAt_ThrowsAndKeepsState()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+
+        var exception = Assert.Throws<SubmittedAtBeforeRequestedAtException>(
+            () => @case.SubmitSupplement(Now.AddMinutes(-1)));
+
+        Assert.Equal(Now.AddMinutes(-1), exception.SubmittedAt);
+        Assert.Equal(Now, exception.RequestedAt);
+        Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
+        Assert.Null(Assert.Single(@case.SupplementRequests).SubmittedAt);
+    }
+
+    [Fact]
+    public void RequestSupplement_WhenRequestedAgainAfterSubmission_KeepsAllRequests()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+        @case.SubmitSupplement(Now.AddDays(1));
+
+        @case.RequestSupplement("Still missing photos.", Now.AddDays(2));
+
+        Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
+        Assert.Collection(@case.SupplementRequests,
+            first =>
+            {
+                Assert.Equal(1, first.Sequence);
+                Assert.Equal("Need more information.", first.Reason);
+                Assert.Equal(Now.AddDays(1), first.SubmittedAt);
+            },
+            second =>
+            {
+                Assert.Equal(2, second.Sequence);
+                Assert.Equal("Still missing photos.", second.Reason);
+                Assert.Equal(Now.AddDays(2), second.RequestedAt);
+                Assert.Null(second.SubmittedAt);
+            });
+    }
+
+    [Fact]
+    public void SubmitSupplement_WhenMultipleRequests_MarksLatestOnly()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+        @case.SubmitSupplement(Now.AddDays(1));
+        @case.RequestSupplement("Still missing photos.", Now.AddDays(2));
+
+        @case.SubmitSupplement(Now.AddDays(3));
+
+        Assert.Collection(@case.SupplementRequests,
+            first => Assert.Equal(Now.AddDays(1), first.SubmittedAt),
+            second => Assert.Equal(Now.AddDays(3), second.SubmittedAt));
+    }
+
+    // 補件中被退件：最後一筆維持未補件，正好記錄「民眾沒補」
+    [Fact]
+    public void Reject_WhenAwaitingSupplement_LeavesRequestUnsubmitted()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+
+        @case.Reject("No supplement received.");
+
+        Assert.Null(Assert.Single(@case.SupplementRequests).SubmittedAt);
+    }
+
+    // 外部拿到的集合不能被轉型回 List 來偷加資料
+    [Fact]
+    public void SupplementRequests_WhenExposed_CannotBeCastToList()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+
+        Assert.False(@case.SupplementRequests is List<SupplementRequest>);
+    }
+
     // ── 非法轉換 ─────────────────────────────────────────
 
     [Theory]
@@ -114,7 +196,7 @@ public class CaseStatusTransitionTests
     [InlineData(CaseStatus.Rejected)]
     public void RequestSupplement_FromNonUnderReview_Throws(CaseStatus from)
     {
-        AssertTransitionFails(from, CaseStatus.AwaitingSupplement, c => c.RequestSupplement("Reason"));
+        AssertTransitionFails(from, CaseStatus.AwaitingSupplement, c => c.RequestSupplement("Reason", Now));
     }
 
     [Theory]
@@ -124,7 +206,7 @@ public class CaseStatusTransitionTests
     [InlineData(CaseStatus.Rejected)]
     public void SubmitSupplement_FromNonAwaitingSupplement_Throws(CaseStatus from)
     {
-        AssertTransitionFails(from, CaseStatus.UnderReview, c => c.SubmitSupplement());
+        AssertTransitionFails(from, CaseStatus.UnderReview, c => c.SubmitSupplement(Now));
     }
 
     [Theory]
@@ -151,12 +233,13 @@ public class CaseStatusTransitionTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void RequestSupplement_WithBlankReason_ThrowsAndKeepsStatus(string? reason)
+    public void RequestSupplement_WithBlankReason_ThrowsAndKeepsState(string? reason)
     {
         var @case = CreateCaseInStatus(CaseStatus.UnderReview);
 
-        Assert.ThrowsAny<ArgumentException>(() => @case.RequestSupplement(reason!));
+        Assert.ThrowsAny<ArgumentException>(() => @case.RequestSupplement(reason!, Now));
         Assert.Equal(CaseStatus.UnderReview, @case.Status);
+        Assert.Empty(@case.SupplementRequests);
     }
 
     [Theory]
@@ -191,7 +274,7 @@ public class CaseStatusTransitionTests
                 break;
             case CaseStatus.AwaitingSupplement:
                 @case.StartReview();
-                @case.RequestSupplement("Need more information.");
+                @case.RequestSupplement("Need more information.", Now);
                 break;
             case CaseStatus.Closed:
                 @case.StartReview();
