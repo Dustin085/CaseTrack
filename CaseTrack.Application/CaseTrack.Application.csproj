@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CaseTrack.Application\CaseTrack.Application.csproj" />
+    <ProjectReference Include="..\CaseTrack.Domain\CaseTrack.Domain.csproj" />
   </ItemGroup>
 
 </Project>
