@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
   </Folder>
   <Project Path="CaseTrack.Api/CaseTrack.Api.csproj" Id="e76044a6-f49e-4f26-a697-ad9555f19431" />
   <Project Path="CaseTrack.Application/CaseTrack.Application.csproj" Id="30e72ae3-ab3c-4521-82fd-18604bfb1479" />
