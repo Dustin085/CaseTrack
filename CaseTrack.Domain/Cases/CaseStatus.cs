@@ -1,11 +1,10 @@
-﻿namespace CaseTrack.Domain.Cases
+﻿namespace CaseTrack.Domain.Cases;
+
+public enum CaseStatus
 {
-    public enum CaseStatus
-    {
-        Submitted,
-        UnderReview,
-        AwaitingSupplement,
-        Closed,
-        Rejected,
-    }
+    Submitted,
+    UnderReview,
+    AwaitingSupplement,
+    Closed,
+    Rejected,
 }
