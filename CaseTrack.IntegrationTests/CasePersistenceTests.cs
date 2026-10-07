@@ -128,5 +128,46 @@ public class CasePersistenceTests : IClassFixture<DatabaseFixture>
         Assert.Equal(case1.Id, Assert.Single(saved).Id);
     }
 
+    // 從資料庫讀出時，補件紀錄的順序沒有保證（SQL 沒有 ORDER BY），
+    // 所以 Domain 不能靠集合的位置找「要補件的那一筆」
+    [Fact]
+    public async Task SubmitSupplement_OnReloadedCaseWithTwoRequests_MarksLatestRequest()
+    {
+        // Arrange：第 1 次補件已補、第 2 次補件等待中
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障");
+        @case.StartReview();
+        @case.RequestSupplement("缺照片", Now);
+        @case.SubmitSupplement(Now.AddDays(1));
+        @case.RequestSupplement("缺地址", Now.AddDays(2));
+
+        await using (var writeContext = _fixture.CreateContext())
+        {
+            writeContext.Cases.Add(@case);
+            await writeContext.SaveChangesAsync(cancellationToken);
+        }
+
+        // Act：用新的 DbContext 讀出，補件後存回去
+        await using (var actContext = _fixture.CreateContext())
+        {
+            var loaded = await actContext.Cases
+                .Include(c => c.SupplementRequests)
+                .SingleAsync(c => c.Id == @case.Id, cancellationToken);
+            loaded.SubmitSupplement(Now.AddDays(3));
+            await actContext.SaveChangesAsync(cancellationToken);
+        }
+
+        // Assert：再用新的 DbContext 讀出，第 1 筆的歷史紀錄沒被改掉，第 2 筆被標記
+        await using var readContext = _fixture.CreateContext();
+        var reloaded = await readContext.Cases
+            .Include(c => c.SupplementRequests)
+            .SingleAsync(c => c.Id == @case.Id, cancellationToken);
+
+        Assert.Equal(CaseStatus.UnderReview, reloaded.Status);
+        Assert.Collection(reloaded.SupplementRequests.OrderBy(r => r.Sequence),
+            first => Assert.Equal(Now.AddDays(1), first.SubmittedAt),
+            second => Assert.Equal(Now.AddDays(3), second.SubmittedAt));
+    }
+
     private static string NewCaseNumber() => $"T-{Guid.NewGuid():N}"[..20];
 }

@@ -44,7 +44,7 @@ public class Case
     {
         EnsureCanTransition(CaseStatus.UnderReview, CaseStatus.AwaitingSupplement);
 
-        _supplementRequests[^1].MarkSubmitted(submittedAt);
+        _supplementRequests.Single(r => r.SubmittedAt is null).MarkSubmitted(submittedAt);
 
         Status = CaseStatus.UnderReview;
     }

@@ -18,6 +18,10 @@ public class SupplementRequest
 
     internal void MarkSubmitted(DateTimeOffset submittedAt)
     {
+        if (SubmittedAt is not null)
+        {
+            throw new InvalidOperationException("This supplement request has already been submitted.");
+        }
         if (submittedAt < RequestedAt)
         {
             throw new SubmittedAtBeforeRequestedAtException(submittedAt, RequestedAt);
