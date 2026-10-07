@@ -4,7 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaseTrack.IntegrationTests;
 
-public class CasePersistenceTests : IClassFixture<DatabaseFixture>
+[Collection(nameof(DatabaseCollection))]
+public class CasePersistenceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 6, 9, 0, 0, TimeSpan.FromHours(8));
     private readonly DatabaseFixture _fixture;

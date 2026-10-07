@@ -1,4 +1,6 @@
-﻿using CaseTrack.Infrastructure.Persistence;
+﻿using CaseTrack.Application.Abstractions;
+using CaseTrack.Infrastructure.Persistence;
+using CaseTrack.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +14,8 @@ public static class DependencyInjection
     {
         services.AddDbContext<CaseTrackDbContext>(options =>
             options.UseSqlServer(connectionString));
+        services.AddScoped<ICaseRepository, CaseRepository>();
+        services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaseTrackDbContext>());
         return services;
     }
 }

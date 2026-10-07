@@ -1,9 +1,10 @@
-﻿using CaseTrack.Domain.Cases;
+﻿using CaseTrack.Application.Abstractions;
+using CaseTrack.Domain.Cases;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaseTrack.Infrastructure.Persistence;
 
-public class CaseTrackDbContext : DbContext
+public class CaseTrackDbContext : DbContext, IUnitOfWork
 {
     public CaseTrackDbContext(DbContextOptions<CaseTrackDbContext> options) : base(options)
     {
