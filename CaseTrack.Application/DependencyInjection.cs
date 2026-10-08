@@ -1,6 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using static CaseTrack.Application.Cases.GetCase;
-using static CaseTrack.Application.Cases.SubmitCase;
+using CaseTrack.Application.Cases;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaseTrack.Application;
 

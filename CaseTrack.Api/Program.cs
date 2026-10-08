@@ -1,3 +1,4 @@
+using CaseTrack.Application;
 using CaseTrack.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +12,7 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddInfrastructure(builder.Configuration.GetConnectionString("CaseTrack")
     ?? throw new InvalidOperationException("缺少連線字串 'CaseTrack'"));
+builder.Services.AddApplication();
 
 var app = builder.Build();
 
