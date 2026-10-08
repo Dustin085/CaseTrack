@@ -17,6 +17,7 @@ builder.Services.AddApplication();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+builder.Services.AddExceptionHandler<NotFoundExceptionHandler>();
 
 var app = builder.Build();
 app.UseExceptionHandler();

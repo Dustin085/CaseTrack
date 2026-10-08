@@ -1,4 +1,6 @@
 using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Exceptions;
+using CaseTrack.Domain.Cases;
 
 namespace CaseTrack.Application.Cases;
 
@@ -25,14 +27,11 @@ public sealed class GetCaseHandler
         _caseRepository = caseRepository;
     }
 
-    // 找不到時回傳 null，由呼叫端決定怎麼處理（API 回 404）
-    public async Task<CaseDetails?> HandleAsync(Guid caseId, CancellationToken cancellationToken)
+    // 找不到時拋 NotFoundException
+    public async Task<CaseDetails> HandleAsync(Guid caseId, CancellationToken cancellationToken)
     {
-        var @case = await _caseRepository.GetByIdAsync(caseId, cancellationToken);
-        if (@case is null)
-        {
-            return null;
-        }
+        var @case = await _caseRepository.GetByIdAsync(caseId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Case), caseId);
 
         // 從資料庫讀出的補件紀錄沒有順序保證，回傳前依補件次序排序
         var supplementRequests = @case.SupplementRequests

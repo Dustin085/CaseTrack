@@ -9,6 +9,11 @@ public static class DependencyInjection
     {
         services.AddScoped<SubmitCaseHandler>();
         services.AddScoped<GetCaseHandler>();
+        services.AddScoped<ReviewCaseHandler>();
+        services.AddScoped<RejectCaseHandler>();
+        services.AddScoped<CloseCaseHandler>();
+        services.AddScoped<SubmitSupplementHandler>();
+        services.AddScoped<RequestSupplementHandler>();
         return services;
     }
 }
