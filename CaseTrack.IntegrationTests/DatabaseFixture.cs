@@ -5,8 +5,11 @@ namespace CaseTrack.IntegrationTests;
 
 public class DatabaseFixture : IAsyncLifetime
 {
-    public const string ConnectionString =
-        "Server=(localdb)\\MSSQLLocalDB;Database=CaseTrack_IntegrationTests;Trusted_Connection=True;TrustServerCertificate=True";
+    // 預設連 VS 使用的 LocalDB；設定環境變數 CASETRACK_TEST_CONNECTION 可以改連其他資料庫
+    // （例如另一個 LocalDB 執行個體、之後的 Docker SQL Server、CI 環境）
+    public static readonly string ConnectionString =
+        Environment.GetEnvironmentVariable("CASETRACK_TEST_CONNECTION")
+        ?? "Server=(localdb)\\MSSQLLocalDB;Database=CaseTrack_IntegrationTests;Trusted_Connection=True;TrustServerCertificate=True";
 
     public CaseTrackDbContext CreateContext()
     {
