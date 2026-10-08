@@ -1,3 +1,4 @@
+using CaseTrack.Api.ExceptionHandling;
 using CaseTrack.Application;
 using CaseTrack.Infrastructure;
 
@@ -14,7 +15,11 @@ builder.Services.AddInfrastructure(builder.Configuration.GetConnectionString("Ca
     ?? throw new InvalidOperationException("缺少連線字串 'CaseTrack'"));
 builder.Services.AddApplication();
 
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<DomainExceptionHandler>();
+
 var app = builder.Build();
+app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
