@@ -10,6 +10,7 @@ public sealed record CaseDetails(
     string Subject,
     string Content,
     string Status,
+    string? RejectionReason,
     IReadOnlyList<SupplementRequestDetails> SupplementRequests);
 
 public sealed record SupplementRequestDetails(
@@ -45,6 +46,7 @@ public sealed class GetCaseHandler
             @case.Subject,
             @case.Content,
             @case.Status.ToString(),
+            @case.RejectionReason,
             supplementRequests);
     }
 }
