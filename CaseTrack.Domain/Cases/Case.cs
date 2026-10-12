@@ -2,6 +2,7 @@ namespace CaseTrack.Domain.Cases;
 
 public class Case
 {
+    public static readonly TimeSpan SupplementDeadline = TimeSpan.FromDays(14);
     private readonly List<SupplementRequest> _supplementRequests = new();
     public Guid Id { get; private set; } = Guid.NewGuid();
     public string CaseNumber { get; private set; }
@@ -64,6 +65,25 @@ public class Case
 
         RejectionReason = reason;
         Status = CaseStatus.Rejected;
+    }
+
+    public bool IsSupplementOverdue(DateTimeOffset now)
+    {
+        if (Status != CaseStatus.AwaitingSupplement)
+        {
+            return false;
+        }
+        var pendingRequest = _supplementRequests.Single(r => r.SubmittedAt is null);
+        return now - pendingRequest.RequestedAt >= SupplementDeadline;
+    }
+
+    public void RejectOverdueSupplement(DateTimeOffset now)
+    {
+        if (!IsSupplementOverdue(now))
+        {
+            throw new InvalidOperationException("沒有逾期的補件");
+        }
+        Reject("逾期未補件");
     }
 
     private void EnsureCanTransition(CaseStatus target, params CaseStatus[] allowedFrom)

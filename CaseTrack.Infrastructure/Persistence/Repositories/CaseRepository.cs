@@ -24,4 +24,20 @@ internal sealed class CaseRepository : ICaseRepository
             .Include(c => c.SupplementRequests)
             .SingleOrDefaultAsync(c => c.Id == id, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Guid>> GetOverdueSupplementCaseIdsAsync(
+        DateTimeOffset now,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var deadline = now - Case.SupplementDeadline;
+        return await _dbContext.Cases
+            .AsNoTracking()
+            .Where(c => c.Status == CaseStatus.AwaitingSupplement
+            && c.SupplementRequests.Any(r => r.SubmittedAt == null && r.RequestedAt <= deadline))
+            .OrderBy(c => c.CaseNumber)
+            .Select(c => c.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+    }
 }

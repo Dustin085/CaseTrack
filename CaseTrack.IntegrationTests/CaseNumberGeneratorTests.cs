@@ -84,9 +84,4 @@ public class CaseNumberGeneratorTests
         var generator = scope.ServiceProvider.GetRequiredService<ICaseNumberGenerator>();
         return await generator.NextAsync(cancellationToken);
     }
-
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now.ToUniversalTime();
-    }
 }

@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<CloseCaseHandler>();
         services.AddScoped<SubmitSupplementHandler>();
         services.AddScoped<RequestSupplementHandler>();
+        services.AddScoped<RejectOverdueCaseHandler>();
         return services;
     }
 }

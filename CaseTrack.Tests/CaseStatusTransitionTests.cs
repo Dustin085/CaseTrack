@@ -254,6 +254,78 @@ public class CaseStatusTransitionTests
         Assert.Equal(CaseStatus.Submitted, @case.Status);
     }
 
+    // ── 逾期未補件 ─────────────────────────────────────────
+    // 業務規則：要求補件後 14 天未補即逾期（2026-10-12 定案）
+    [Fact]
+    public void SupplementDeadline_Is14Days()
+    {
+        Assert.Equal(TimeSpan.FromDays(14), Case.SupplementDeadline);
+    }
+
+    [Theory]
+    [InlineData(0)] // 剛好
+    [InlineData(1440)] // 多 1 天
+    public void IsSupplementOverdue_AtOrAfterDeadline_ReturnsTrue(int minutesAfterDeadline)
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+        var now = Now + Case.SupplementDeadline + TimeSpan.FromMinutes(minutesAfterDeadline);
+
+        Assert.True(@case.IsSupplementOverdue(now));
+    }
+
+    [Theory]
+    [InlineData(-1)] // 還差 1 分鐘
+    [InlineData(-1440)] // 還差 1 天
+    public void IsSupplementOverdue_BeforeDeadline_ReturnsFalse(int minutesAfterDeadline)
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+        var now = Now + Case.SupplementDeadline + TimeSpan.FromMinutes(minutesAfterDeadline);
+
+        Assert.False(@case.IsSupplementOverdue(now));
+    }
+
+    [Fact]
+    public void IsSupplementOverdue_WhenSecondSupplementRequestBeforeDeadline_ReturnsFalse()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+        @case.SubmitSupplement(Now + TimeSpan.FromDays(1));
+        @case.RequestSupplement("Still missing photos.", Now + TimeSpan.FromDays(2));
+
+        Assert.False(@case.IsSupplementOverdue(Now + TimeSpan.FromDays(15)));
+    }
+
+    [Theory]
+    [InlineData(CaseStatus.Rejected)]
+    [InlineData(CaseStatus.UnderReview)]
+    public void IsSupplementOverdue_CaseNotAwaitingSupplement_ReturnsFalse(CaseStatus status)
+    {
+        var @case = CreateCaseInStatus(status);
+
+        Assert.False(@case.IsSupplementOverdue(Now));
+    }
+
+    [Fact]
+    public void RejectOverdueSupplement_WhenOverdue_ChangesStatusToRejected()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+        var now = Now + Case.SupplementDeadline + TimeSpan.FromDays(1);
+
+        @case.RejectOverdueSupplement(now);
+
+        Assert.Equal(CaseStatus.Rejected, @case.Status);
+        Assert.Equal("逾期未補件", @case.RejectionReason);
+    }
+
+    [Fact]
+    public void RejectOverdueSupplement_WhenNotOverdue_ThrowsAndKeepsState()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+        var now = Now + Case.SupplementDeadline + TimeSpan.FromDays(-1);
+
+        Assert.Throws<InvalidOperationException>(() => @case.RejectOverdueSupplement(now));
+        Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
+    }
+
     // ── Helpers ──────────────────────────────────────────
 
     private static Case CreateTestCase()
