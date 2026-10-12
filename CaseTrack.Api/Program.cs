@@ -18,6 +18,7 @@ builder.Services.AddApplication();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddExceptionHandler<NotFoundExceptionHandler>();
+builder.Services.AddExceptionHandler<ConcurrencyConflictExceptionHandler>();
 
 var app = builder.Build();
 app.UseExceptionHandler();

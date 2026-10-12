@@ -147,3 +147,72 @@ record 的驗證標註寫成 `[property: Required]`，編譯會過，但 ASP.NET
 - **Migration 不在程式啟動時自動執行**：程式的資料庫帳號只給讀寫資料的權限，不給改 schema 的權限（權限分離）；schema 變更產生 idempotent SQL 腳本交給 DBA 審查執行。
 - **SQL Injection**：手寫 SQL 一律用參數化（EF 的 `FormattableString`），不串接字串。
 - **輸入長度限制**：每個欄位都有明確長度（政府規格書通常會寫），API 層和資料庫各擋一次。
+
+---
+
+## 2026-10-08：全域例外處理、承辦人處理流程、API 測試
+
+### 9. 你的 API 怎麼處理錯誤？
+
+**30 秒版本**
+Controller 裡沒有任何 try/catch，全部交給 .NET 8 的 `IExceptionHandler` 統一處理。例外分三類：違反業務規則的 `DomainException` 回 409，找不到資源的 `NotFoundException` 回 404，其他所有例外一律回 500 而且不透露任何內部資訊，只給 `traceId` 讓我們對照 log。格式全部是 ProblemDetails（RFC 9457），跟框架自動產生的 400 一致。
+
+**展開**
+- **分類的依據是「使用者能不能自己解決」**：對已結案的案件按受理，使用者看到原因就知道怎麼辦（409 + 目前狀態、目標狀態）；程式 bug 告訴使用者細節也沒用，還會洩漏內部資訊（500）。
+- **409 不是 400**：400 是請求格式錯，換時間送還是錯；409 是請求格式對，但跟資源目前的狀態衝突。
+- 例外裡保留結構化的屬性（`CurrentStatus`、`TargetStatus`），放進 ProblemDetails 的 `Extensions`，前端不用解析英文訊息。
+- 同一個 bug 示範分類的重要性：補件的 Handler 找不到案件時一開始丟 `InvalidOperationException`，結果回 500 而不是 404。**選錯例外型別，HTTP 狀態碼就會跟著錯。**
+- **處理器裡要有「通用的 DomainException」回應**：一開始只處理兩種子類別、最後無條件 `return true`，新的子類別會變成空白的 200 回應，比 500 更糟，因為沒人會發現。
+- 被 `IExceptionHandler` 處理掉的例外，.NET 10 預設不記錄成錯誤，所以 409 要自己記一筆 Warning（代表前端可能沒擋住不合法的按鈕）。404 太常見，不記。
+- `UseExceptionHandler()` 放在 middleware 最外層；少了 `AddProblemDetails()` 的話 API 在**啟動時**就會失敗（好的設計：早失敗）。
+
+**證據**：`CaseTrack.Api/ExceptionHandling/`；API 測試 `ReviewCase_WhenClosed_ReturnsConflictWithStatuses`。
+
+---
+
+### 10. 改變狀態的 API 怎麼設計？為什麼不用 PATCH？
+
+**30 秒版本**
+每個業務動作一個端點：`POST /api/cases/{id}/review`、`/close`、`/reject`、`/supplement-requests`、`/supplement-submission`。因為 Domain 是充血模型，狀態只能透過業務方法改變，如果開一個 `PATCH { "status": "Closed" }`，等於在 API 層開了一個直接改狀態的後門。
+
+**展開**
+- 每個動作需要的參數不同（退件要原因、受理不用），PATCH 會把它們混在一起。
+- 每個端點對應一個 Domain 方法，之後可以分別設定權限（例如只有主管能結案）、稽核紀錄看得到「做了什麼動作」。
+- 用 POST 因為這是**動作**，不是修改資源的某個欄位。成功回 204。
+- 每個用例一個 Handler（vertical slice），只注入自己需要的依賴，避免 Spring 式的 `CaseService` 變成依賴越來越多的上帝類別。
+
+---
+
+### 11. 單元測試、整合測試、API 測試差在哪？
+
+**30 秒版本**
+單元測試測 Domain 的業務規則，不碰資料庫；整合測試連真的 SQL Server，測 EF 對應、SQL、DI；API 測試用 `WebApplicationFactory` 在記憶體裡啟動整個 API，用 HttpClient 打請求，路由、模型繫結、驗證、例外處理全部都會經過。越上層越慢，數量越少。
+
+**展開：每一層實際抓到過的 bug**
+
+| 層 | 抓到的 bug |
+|---|---|
+| 單元測試 | 狀態機的規則、補件標記到錯的那一筆（記憶體情境） |
+| 整合測試 | 補件順序（資料庫不保證順序）、主鍵被誤判成 UPDATE、併發撞號、DI 建了兩個 DbContext |
+| API 測試 | record 驗證標註加 `property:` 導致每個 POST 都 500、漏註冊 Handler／例外處理器、DTO 漏了退件原因 |
+
+**API 測試的陷阱**
+- **只檢查狀態碼不夠**：路由對不到時也是 404（內容是空的），要檢查 `application/problem+json` 才知道是我們的處理器回的。我用「把路由打錯字」做反向驗證，只檢查狀態碼的測試照樣通過。
+- **站在外部使用者的角度**：請求用匿名型別、狀態比對字串 `"Closed"` 而不是 `CaseStatus.Closed.ToString()`，否則 enum 改名時 API 合約變了測試卻不會失敗。
+- **用 Location 去 GET**，才證明 201 的 Location 真的能用。
+- 測試連線字串用 `UseSetting` 覆蓋：.NET 6 之後在 `Program.cs` 直接讀設定，`ConfigureAppConfiguration` 加入的設定太晚生效。
+
+**證據**：`CaseTrack.IntegrationTests/Api/`。
+
+---
+
+### 12. 遇過最麻煩的環境問題？怎麼排查？
+
+**30 秒版本**
+LocalDB 反覆啟動失敗。我從錯誤記錄看到 SQL Server 其實有啟動成功，但 Windows 事件記錄顯示 LocalDB 的管理程式等不到啟動完成的訊號，就把狀態記成已停止，留下一個它管不到的程序，之後每次啟動都因為檔案被佔用而失敗。用全新的執行個體測試正常，所以判斷是那個執行個體的問題；重建時又發現有別的程式（推測是 VS）在幾秒內觸發了自動啟動。最後讓開發工具和我的驗證用不同的執行個體，長期打算改用 Docker。
+
+**展開**
+- 排查順序：錯誤訊息 → 執行個體狀態 vs 實際程序 → SQL Server 的 error.log → Windows 事件記錄 → 用全新的執行個體做對照組。
+- 處理方式從強制結束程序改成透過 named pipe 連進去執行 `SHUTDOWN`，正常關閉。
+- 所有 LocalDB 執行個體的 .mdf 預設在同一個資料夾，資料庫名稱不能重複。
+- 測試的連線字串改成可以用環境變數覆蓋，換 Docker 或上 CI 時測試程式碼不用改。

@@ -28,5 +28,10 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
             .HasForeignKey("CaseId")
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
+
+        // 樂觀併發控制：SQL Server 在每次 UPDATE 時自動更新這個值，EF 會把讀出時的值放進 UPDATE 的 WHERE 條件。
+        // 值不一致代表讀出之後已被別人修改，EF 會丟出 DbUpdateConcurrencyException。
+        // 用影子屬性，因為這是資料庫的技術細節，Domain 不需要知道。
+        builder.Property<byte[]>("RowVersion").IsRowVersion();
     }
 }

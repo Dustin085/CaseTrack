@@ -1,4 +1,6 @@
-﻿using CaseTrack.Domain.Cases;
+﻿using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Exceptions;
+using CaseTrack.Domain.Cases;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -168,6 +170,38 @@ public class CasePersistenceTests
         Assert.Collection(reloaded.SupplementRequests.OrderBy(r => r.Sequence),
             first => Assert.Equal(Now.AddDays(1), first.SubmittedAt),
             second => Assert.Equal(Now.AddDays(3), second.SubmittedAt));
+    }
+
+    [Fact]
+    public async Task SaveChanges_WhenConcurrentUpdateOccurs_ThrowsConcurrencyConflict()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障");
+        @case.StartReview();
+        await using (var writeContext = _fixture.CreateContext())
+        {
+            writeContext.Cases.Add(@case);
+            await ((IUnitOfWork)writeContext).SaveChangesAsync(cancellationToken);
+        }
+
+        // Act：兩個不同的 DbContext 同時讀出同一個案件，並各自修改
+        await using var firstContext = _fixture.CreateContext();
+        var firstLoaded = await firstContext.Cases
+            .SingleAsync(c => c.Id == @case.Id, cancellationToken);
+        firstLoaded.Reject("不符合規定");
+        await using var secondContext = _fixture.CreateContext();
+        var secondLoaded = await secondContext.Cases
+            .SingleAsync(c => c.Id == @case.Id, cancellationToken);
+        secondLoaded.Close();
+        await ((IUnitOfWork)firstContext).SaveChangesAsync(cancellationToken);
+
+        // Assert
+        await Assert.ThrowsAsync<ConcurrencyConflictException>(
+            () => ((IUnitOfWork)secondContext).SaveChangesAsync(cancellationToken));
+        await using var readContext = _fixture.CreateContext();
+        var reloaded = await readContext.Cases
+            .SingleAsync(c => c.Id == @case.Id, cancellationToken);
+        Assert.Equal(CaseStatus.Rejected, reloaded.Status);
     }
 
     private static string NewCaseNumber() => $"T-{Guid.NewGuid():N}"[..20];
