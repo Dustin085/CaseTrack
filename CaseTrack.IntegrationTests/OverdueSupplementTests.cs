@@ -190,6 +190,7 @@ public class OverdueSupplementTests
         services.AddInfrastructure(DatabaseFixture.ConnectionString);
         services.AddApplication();
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(now));
+        services.AddScoped<ICurrentUser>(_ => new FixedCurrentUser("test-user"));
         return services.BuildServiceProvider();
     }
 

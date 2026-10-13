@@ -1,6 +1,8 @@
 using CaseTrack.Api.BackgroundJobs;
 using CaseTrack.Api.ExceptionHandling;
+using CaseTrack.Api.Services;
 using CaseTrack.Application;
+using CaseTrack.Application.Abstractions;
 using CaseTrack.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +26,9 @@ builder.Services.AddExceptionHandler<ConcurrencyConflictExceptionHandler>();
 builder.Services.AddOptions<OverdueScanOptions>().BindConfiguration("OverdueScan");
 
 builder.Services.AddHostedService<OverdueSupplementScanner>();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 
 var app = builder.Build();
 app.UseExceptionHandler();

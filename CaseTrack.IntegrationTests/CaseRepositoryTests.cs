@@ -46,6 +46,7 @@ public class CaseRepositoryTests
     {
         var services = new ServiceCollection();
         services.AddInfrastructure(DatabaseFixture.ConnectionString);
+        services.AddScoped<ICurrentUser>(_ => new FixedCurrentUser("test-user"));
         return services.BuildServiceProvider().CreateAsyncScope();
     }
 

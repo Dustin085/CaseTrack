@@ -74,6 +74,7 @@ public class CaseNumberGeneratorTests
         var services = new ServiceCollection();
         services.AddInfrastructure(DatabaseFixture.ConnectionString);
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(now));
+        services.AddScoped<ICurrentUser>(_ => new FixedCurrentUser("test-user"));
         return services.BuildServiceProvider();
     }
 
