@@ -1,3 +1,4 @@
+using CaseTrack.Api.BackgroundJobs;
 using CaseTrack.Api.ExceptionHandling;
 using CaseTrack.Application;
 using CaseTrack.Infrastructure;
@@ -19,6 +20,10 @@ builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddExceptionHandler<NotFoundExceptionHandler>();
 builder.Services.AddExceptionHandler<ConcurrencyConflictExceptionHandler>();
+
+builder.Services.AddOptions<OverdueScanOptions>().BindConfiguration("OverdueScan");
+
+builder.Services.AddHostedService<OverdueSupplementScanner>();
 
 var app = builder.Build();
 app.UseExceptionHandler();

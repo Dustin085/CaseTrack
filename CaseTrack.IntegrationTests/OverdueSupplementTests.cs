@@ -1,9 +1,12 @@
+using CaseTrack.Api.BackgroundJobs;
 using CaseTrack.Application;
 using CaseTrack.Application.Abstractions;
 using CaseTrack.Application.Cases;
 using CaseTrack.Domain.Cases;
 using CaseTrack.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CaseTrack.IntegrationTests;
 
@@ -134,6 +137,50 @@ public class OverdueSupplementTests
         Assert.Equal(CaseStatus.UnderReview, reloaded.Status);
         Assert.Null(reloaded.RejectionReason);
         Assert.NotNull(Assert.Single(reloaded.SupplementRequests).SubmittedAt);
+    }
+
+    [Fact]
+    public async Task ScanOnceAsync_WithOverdueAndNonOverdueCases_RejectsOnlyOverdueCase()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var provider = CreateProvider(Now);
+
+        var overdueCase = new Case(NewCaseNumber(), "Overdue Case", "Overdue case content");
+        overdueCase.StartReview();
+        overdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
+
+        var notOverdueCase = new Case(NewCaseNumber(), "Nonoverdue Case", "Nonoverdue case content");
+        notOverdueCase.StartReview();
+        notOverdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline + TimeSpan.FromDays(1));
+
+        await using (var writeScope = provider.CreateAsyncScope())
+        {
+            var repo = writeScope.ServiceProvider.GetRequiredService<ICaseRepository>();
+            repo.Add(overdueCase);
+            repo.Add(notOverdueCase);
+            await writeScope.ServiceProvider.GetRequiredService<IUnitOfWork>()
+                .SaveChangesAsync(cancellationToken);
+        }
+
+        // Act
+        var scanner = new OverdueSupplementScanner(
+            provider.GetRequiredService<IServiceScopeFactory>(),
+            Options.Create(new OverdueScanOptions { BatchSize = 100 }),
+            provider.GetRequiredService<TimeProvider>(),
+            NullLogger<OverdueSupplementScanner>.Instance);
+        await scanner.ScanOnceAsync(cancellationToken);
+
+        // Assert
+        await using var readScope = provider.CreateAsyncScope();
+        var readRepo = readScope.ServiceProvider.GetRequiredService<ICaseRepository>();
+        var overdueReloaded = await readRepo.GetByIdAsync(overdueCase.Id, cancellationToken);
+        Assert.NotNull(overdueReloaded);
+        var nonoverdueReloaded = await readRepo.GetByIdAsync(notOverdueCase.Id, cancellationToken);
+        Assert.NotNull(nonoverdueReloaded);
+
+        Assert.Equal(CaseStatus.Rejected, overdueReloaded.Status);
+        Assert.Equal(CaseStatus.AwaitingSupplement, nonoverdueReloaded.Status);
     }
 
     // 用正式的 AddInfrastructure／AddApplication 註冊，只把時間來源換成固定的時間

@@ -19,19 +19,20 @@ public sealed class RejectOverdueCaseHandler
         _timeProvider = timeProvider;
     }
 
-    public async Task HandleAsync(Guid caseId, CancellationToken cancellationToken)
+    public async Task<bool> HandleAsync(Guid caseId, CancellationToken cancellationToken)
     {
         var @case = await _caseRepository.GetByIdAsync(caseId, cancellationToken);
         var now = _timeProvider.GetUtcNow();
         if (@case is null)
         {
-            return;
+            return false;
         }
         if (!@case.IsSupplementOverdue(now))
         {
-            return;
+            return false;
         }
         @case.RejectOverdueSupplement(now);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return true;
     }
 }
