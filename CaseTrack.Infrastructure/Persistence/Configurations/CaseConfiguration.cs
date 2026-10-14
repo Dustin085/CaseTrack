@@ -27,10 +27,11 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
         // 不用 OwnsOne：Owned Type 其實是有隱藏主鍵的 entity，整個換掉值物件時會被追蹤成「刪除舊的 + 新增新的」。
         builder.ComplexProperty(c => c.Petitioner, petitioner =>
         {
-            petitioner.Property(p => p.Name).HasMaxLength(50);
-            petitioner.Property(p => p.Phone).HasMaxLength(20);
-            petitioner.Property(p => p.Email).HasMaxLength(254);
-            petitioner.Property(p => p.Address).HasMaxLength(200);
+            // IsPersonalData：稽核紀錄裡會遮罩
+            petitioner.Property(p => p.Name).HasMaxLength(50).IsPersonalData();
+            petitioner.Property(p => p.Phone).HasMaxLength(20).IsPersonalData();
+            petitioner.Property(p => p.Email).HasMaxLength(254).IsPersonalData();
+            petitioner.Property(p => p.Address).HasMaxLength(200).IsPersonalData();
         });
 
         builder.HasMany(c => c.SupplementRequests)

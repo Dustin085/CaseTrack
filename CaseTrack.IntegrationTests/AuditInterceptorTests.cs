@@ -36,6 +36,36 @@ public class AuditInterceptorTests
         Assert.Contains("路燈不亮", auditEntry.Changes);
     }
 
+    // 值物件（Complex Type）的欄位不在 entry.Properties 裡，攔截器要另外展開才記錄得到；
+    // 陳情人的欄位都是個資，只能記錄遮罩後的值
+    [Fact]
+    public async Task SaveChanges_NewCase_RecordsMaskedPetitionerFieldsWithPrefix()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障",
+            new Petitioner("王小明", "0912345678", null, "臺北市中山區"));
+
+        // Act
+        await AddCaseAsync(@case, cancellationToken);
+
+        // Assert
+        var auditEntry = Assert.Single(await GetAuditEntriesAsync(@case.Id, cancellationToken));
+        using var changes = JsonDocument.Parse(auditEntry.Changes);
+        var root = changes.RootElement;
+        Assert.Equal("王*明", root.GetProperty("Petitioner.Name").GetProperty("New").GetString());
+        Assert.Equal("09******78", root.GetProperty("Petitioner.Phone").GetProperty("New").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("Petitioner.Email").GetProperty("New").ValueKind);
+        Assert.Equal("臺****區", root.GetProperty("Petitioner.Address").GetProperty("New").GetString());
+
+        // 不管 JSON 的結構怎麼變，完整的個資都不能出現在稽核紀錄的任何地方
+        Assert.DoesNotContain("0912345678", auditEntry.Changes);
+        Assert.DoesNotContain("王小明", auditEntry.Changes);
+
+        // 不是個資的欄位照常記錄
+        Assert.Equal("路燈不亮", root.GetProperty(nameof(Case.Subject)).GetProperty("New").GetString());
+    }
+
     // 同步版的 SaveChanges 走的是攔截器的另一個覆寫點（SavingChanges），要分開驗證
     [Fact]
     public async Task SaveChanges_Synchronous_AddsAuditEntry()

@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Privacy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -90,16 +92,44 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
 
     // 新增：所有欄位的新值；修改：只有被改過的欄位的前後值；刪除：所有欄位的舊值。
     // 排除併發標記（RowVersion）：資料庫每次都會改它，記錄它沒有意義。
+    // 個資欄位（Configuration 裡標了 IsPersonalData）只記錄遮罩後的值，稽核表不能變成個資外洩的管道。
     private static Dictionary<string, PropertyChange> GetChanges(EntityEntry entry)
     {
-        return entry.Properties
-            .Where(p => !p.Metadata.IsConcurrencyToken)
-            .Where(p => entry.State != EntityState.Modified || p.IsModified)
+        return GetAuditableProperties(entry)
+            .Where(p => !p.Entry.Metadata.IsConcurrencyToken)
+            .Where(p => entry.State != EntityState.Modified || p.Entry.IsModified)
             .ToDictionary(
-                p => p.Metadata.Name,
+                p => p.Name,
                 p => new PropertyChange(
-                    entry.State == EntityState.Added ? null : p.OriginalValue,
-                    entry.State == EntityState.Deleted ? null : p.CurrentValue));
+                    entry.State == EntityState.Added ? null : ToAuditValue(p.Entry, p.Entry.OriginalValue),
+                    entry.State == EntityState.Deleted ? null : ToAuditValue(p.Entry, p.Entry.CurrentValue)));
+    }
+
+    private static object? ToAuditValue(PropertyEntry property, object? value)
+    {
+        // null 要原樣保留：Convert.ToString(null) 會回傳 ""，「沒填」就會被記錄成「填了空字串」
+        if (value is null || !property.Metadata.IsPersonalData())
+        {
+            return value;
+        }
+
+        // 不只處理 string：之後如果把非字串的欄位標成個資（例如生日），也一定會被遮罩，不會原樣寫進去
+        return PersonalDataMasker.Mask(Convert.ToString(value, CultureInfo.InvariantCulture));
+    }
+
+    // 一般欄位在 entry.Properties；值物件（Complex Type，例如 Petitioner）的欄位在 entry.ComplexProperties，要另外展開。
+    // 值物件的欄位名稱加上前綴（Petitioner.Phone），避免跟 entity 自己的欄位撞名。
+    // 限制：只展開一層，值物件裡面如果還有值物件（巢狀），裡面那層不會被記錄。
+    private static IEnumerable<(string Name, PropertyEntry Entry)> GetAuditableProperties(EntityEntry entry)
+    {
+        var properties = entry.Properties
+            .Select(p => (p.Metadata.Name, p));
+
+        var complexProperties = entry.ComplexProperties
+            .SelectMany(complex => complex.Properties
+                .Select(p => ($"{complex.Metadata.Name}.{p.Metadata.Name}", p)));
+
+        return properties.Concat(complexProperties);
     }
 
     private sealed record PropertyChange(object? Old, object? New);
