@@ -36,6 +36,28 @@ public class AuditInterceptorTests
         Assert.Contains("路燈不亮", auditEntry.Changes);
     }
 
+    // 同步版的 SaveChanges 走的是攔截器的另一個覆寫點（SavingChanges），要分開驗證
+    [Fact]
+    public async Task SaveChanges_Synchronous_AddsAuditEntry()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障");
+
+        // Act：直接呼叫 DbContext 的同步 SaveChanges（IUnitOfWork 只有非同步版本）
+        await using (var writeScope = CreateScope(Now))
+        {
+            var dbContext = writeScope.ServiceProvider.GetRequiredService<CaseTrackDbContext>();
+            dbContext.Cases.Add(@case);
+            dbContext.SaveChanges();
+        }
+
+        // Assert
+        var auditEntries = await GetAuditEntriesAsync(@case.Id, cancellationToken);
+        var auditEntry = Assert.Single(auditEntries);
+        Assert.Equal("Added", auditEntry.Action);
+    }
+
     [Fact]
     public async Task SaveChanges_StartReview_RecordsOnlyStatusChange()
     {

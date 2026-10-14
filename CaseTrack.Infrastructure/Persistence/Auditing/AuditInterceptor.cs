@@ -33,6 +33,19 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         _timeProvider = timeProvider;
     }
 
+    // 同步和非同步是兩個獨立的覆寫點：只覆寫其中一個，呼叫另一個版本時稽核會被靜靜跳過
+    public override InterceptionResult<int> SavingChanges(
+        DbContextEventData eventData,
+        InterceptionResult<int> result)
+    {
+        if (eventData.Context is { } dbContext)
+        {
+            AddAuditEntries(dbContext);
+        }
+
+        return base.SavingChanges(eventData, result);
+    }
+
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
