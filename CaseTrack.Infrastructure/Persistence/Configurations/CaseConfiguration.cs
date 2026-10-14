@@ -23,6 +23,16 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
 
         builder.Property(c => c.RejectionReason).HasMaxLength(500);
 
+        // 值物件用 ComplexProperty：欄位攤平在 Cases 表（Petitioner_Name…），EF 把它當成 Case 的一部分。
+        // 不用 OwnsOne：Owned Type 其實是有隱藏主鍵的 entity，整個換掉值物件時會被追蹤成「刪除舊的 + 新增新的」。
+        builder.ComplexProperty(c => c.Petitioner, petitioner =>
+        {
+            petitioner.Property(p => p.Name).HasMaxLength(50);
+            petitioner.Property(p => p.Phone).HasMaxLength(20);
+            petitioner.Property(p => p.Email).HasMaxLength(254);
+            petitioner.Property(p => p.Address).HasMaxLength(200);
+        });
+
         builder.HasMany(c => c.SupplementRequests)
             .WithOne()
             .HasForeignKey("CaseId")

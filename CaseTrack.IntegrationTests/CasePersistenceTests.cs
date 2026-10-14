@@ -22,7 +22,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障");
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
         @case.SubmitSupplement(Now.AddDays(1));
@@ -58,7 +58,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障");
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
         @case.StartReview();
 
         // Arrange：用一個 DbContext 寫入
@@ -101,8 +101,8 @@ public class CasePersistenceTests
         // Arrange：第一個案件先成功存進去（模擬先到的請求）
         var cancellationToken = TestContext.Current.CancellationToken;
         var caseNumber = NewCaseNumber();
-        var case1 = new Case(caseNumber, "路燈不亮", "中山路路燈故障");
-        var case2 = new Case(caseNumber, "水管破裂", "中山路水管破裂");
+        var case1 = new Case(caseNumber, "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        var case2 = new Case(caseNumber, "水管破裂", "中山路水管破裂", TestData.Petitioner);
 
         await using (var firstContext = _fixture.CreateContext())
         {
@@ -138,7 +138,7 @@ public class CasePersistenceTests
     {
         // Arrange：第 1 次補件已補、第 2 次補件等待中
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障");
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
         @case.SubmitSupplement(Now.AddDays(1));
@@ -176,7 +176,7 @@ public class CasePersistenceTests
     public async Task SaveChanges_WhenConcurrentUpdateOccurs_ThrowsConcurrencyConflict()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障");
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
         @case.StartReview();
         await using (var writeContext = _fixture.CreateContext())
         {

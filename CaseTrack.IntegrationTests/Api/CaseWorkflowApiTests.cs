@@ -26,7 +26,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
 
         // 提交：201 + Location
         var submitResponse = await _client.PostAsJsonAsync("api/cases",
-            new { subject = "路燈不亮", content = "中山路路燈故障" },
+            new { subject = "路燈不亮", content = "中山路路燈故障", petitioner = ValidPetitioner },
             cancellationToken);
         Assert.Equal(HttpStatusCode.Created, submitResponse.StatusCode);
         var submitted = await submitResponse.Content.ReadFromJsonAsync<SubmitCaseResult>(cancellationToken);
@@ -105,7 +105,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         var cancellationToken = TestContext.Current.CancellationToken;
 
         var response = await _client.PostAsJsonAsync("api/cases",
-            new { subject = "", content = "中山路路燈故障" },
+            new { subject = "", content = "中山路路燈故障", petitioner = ValidPetitioner },
             cancellationToken);
 
         await AssertValidationProblemAsync(response, "Subject");
@@ -125,10 +125,12 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
 
     // ── Helpers ──────────────────────────────────────────
 
+    private static readonly object ValidPetitioner = new { name = "王小明", phone = "0912345678" };
+
     private async Task<SubmitCaseResult> SubmitCaseAsync(string subject, string content)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var response = await _client.PostAsJsonAsync("api/cases", new { subject, content }, cancellationToken);
+        var response = await _client.PostAsJsonAsync("api/cases", new { subject, content, petitioner = ValidPetitioner }, cancellationToken);
 
         // 準備資料失敗時，直接在這裡失敗，錯誤訊息才看得出是哪一步出問題
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

@@ -8,20 +8,33 @@ public class Case
     public string CaseNumber { get; private set; }
     public string Subject { get; private set; }
     public string Content { get; private set; }
+    public Petitioner Petitioner { get; private set; }
     public CaseStatus Status { get; private set; } = CaseStatus.Submitted;
     public IReadOnlyCollection<SupplementRequest> SupplementRequests => _supplementRequests.AsReadOnly();
     public string? RejectionReason { get; private set; }
 
     // 案件編號（每日流水號）需要查資料庫才能保證不重複，由外部產生後傳入
-    public Case(string caseNumber, string subject, string content)
+    public Case(string caseNumber, string subject, string content, Petitioner petitioner)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(caseNumber);
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
+        ArgumentNullException.ThrowIfNull(petitioner);
 
         CaseNumber = caseNumber;
         Subject = subject;
         Content = content;
+        Petitioner = petitioner;
+    }
+
+    // 給 EF Core 從資料庫讀出時使用：EF 沒辦法把值物件（Petitioner）綁定到建構子參數，
+    // 所以改用這個建構子建立物件，再直接把資料庫的值寫進屬性。業務程式碼不能呼叫（private）。
+    private Case()
+    {
+        CaseNumber = null!;
+        Subject = null!;
+        Content = null!;
+        Petitioner = null!;
     }
 
     public void StartReview()

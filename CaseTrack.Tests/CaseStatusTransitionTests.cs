@@ -5,6 +5,7 @@ namespace CaseTrack.Tests;
 public class CaseStatusTransitionTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 5, 9, 0, 0, TimeSpan.FromHours(8));
+    private static readonly Petitioner Petitioner = new("王小明", "0912345678", null, null);
 
     // ── 建立 ─────────────────────────────────────────────
 
@@ -25,7 +26,13 @@ public class CaseStatusTransitionTests
     public void Constructor_WithBlankArgument_ThrowsArgumentException(
         string caseNumber, string subject, string content)
     {
-        Assert.ThrowsAny<ArgumentException>(() => new Case(caseNumber, subject, content));
+        Assert.ThrowsAny<ArgumentException>(() => new Case(caseNumber, subject, content, Petitioner));
+    }
+
+    [Fact]
+    public void Constructor_WithNullPetitioner_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new Case("20261005-0001", "Subject", "Content", null!));
     }
 
     // ── 合法轉換 ─────────────────────────────────────────
@@ -330,7 +337,7 @@ public class CaseStatusTransitionTests
 
     private static Case CreateTestCase()
     {
-        return new Case("20261005-0001", "Test Subject", "Test Content");
+        return new Case("20261005-0001", "Test Subject", "Test Content", Petitioner);
     }
 
     private static Case CreateCaseInStatus(CaseStatus status)

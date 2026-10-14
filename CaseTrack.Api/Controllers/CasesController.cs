@@ -15,7 +15,13 @@ public sealed class CasesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await handler.HandleAsync(
-            new SubmitCaseCommand(request.Subject, request.Content),
+            new SubmitCaseCommand(
+                request.Subject,
+                request.Content,
+                request.Petitioner.Name,
+                request.Petitioner.Phone,
+                request.Petitioner.Email,
+                request.Petitioner.Address),
             cancellationToken);
 
         // 201 Created + Location 標頭指向新案件的網址

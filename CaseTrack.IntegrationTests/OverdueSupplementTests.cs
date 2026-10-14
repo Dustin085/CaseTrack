@@ -27,7 +27,7 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：在一個 scope 裡建立「15 天前要求補件」的案件
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.");
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
         await using (var writeScope = provider.CreateAsyncScope())
@@ -53,7 +53,7 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：在一個 scope 裡建立「13 天前要求補件」的案件
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.");
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline + TimeSpan.FromDays(1));
         await using (var writeScope = provider.CreateAsyncScope())
@@ -78,7 +78,7 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：在一個 scope 裡建立「15 天前要求補件」的案件
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.");
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
         await using (var writeScope = provider.CreateAsyncScope())
@@ -112,7 +112,7 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：15 天前要求補件，但民眾昨天已經補件了（回到審核中）
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.");
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
         @case.SubmitSupplement(Now - TimeSpan.FromDays(1));
@@ -146,11 +146,11 @@ public class OverdueSupplementTests
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider(Now);
 
-        var overdueCase = new Case(NewCaseNumber(), "Overdue Case", "Overdue case content");
+        var overdueCase = new Case(NewCaseNumber(), "Overdue Case", "Overdue case content", TestData.Petitioner);
         overdueCase.StartReview();
         overdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
 
-        var notOverdueCase = new Case(NewCaseNumber(), "Nonoverdue Case", "Nonoverdue case content");
+        var notOverdueCase = new Case(NewCaseNumber(), "Nonoverdue Case", "Nonoverdue case content", TestData.Petitioner);
         notOverdueCase.StartReview();
         notOverdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline + TimeSpan.FromDays(1));
 
