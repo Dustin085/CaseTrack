@@ -1,5 +1,6 @@
 using CaseTrack.Application.Abstractions;
 using CaseTrack.Application.Exceptions;
+using CaseTrack.Application.Privacy;
 using CaseTrack.Domain.Cases;
 
 namespace CaseTrack.Application.Cases;
@@ -11,7 +12,14 @@ public sealed record CaseDetails(
     string Content,
     string Status,
     string? RejectionReason,
+    PetitionerDetails Petitioner,
     IReadOnlyList<SupplementRequestDetails> SupplementRequests);
+
+public sealed record PetitionerDetails(
+    string? Name,
+    string? Phone,
+    string? Email,
+    string? Address);
 
 public sealed record SupplementRequestDetails(
     int Sequence,
@@ -47,6 +55,17 @@ public sealed class GetCaseHandler
             @case.Content,
             @case.Status.ToString(),
             @case.RejectionReason,
+            ToMaskedDetails(@case.Petitioner),
             supplementRequests);
     }
+
+    // 目前還沒有登入功能，所以一律遮罩（比較安全的預設值）。
+    // 加上授權之後要改成依照查看的人決定：承辦人、單位主管看完整資料（並寫入個資查詢紀錄），其他人看遮罩後的值。
+    // 這是業務規則加上授權，所以放在 Application，不放在 Controller。
+    private static PetitionerDetails ToMaskedDetails(Petitioner petitioner) =>
+        new(
+            PersonalDataMasker.Mask(petitioner.Name),
+            PersonalDataMasker.Mask(petitioner.Phone),
+            PersonalDataMasker.Mask(petitioner.Email),
+            PersonalDataMasker.Mask(petitioner.Address));
 }

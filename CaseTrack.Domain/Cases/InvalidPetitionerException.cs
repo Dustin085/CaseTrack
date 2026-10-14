@@ -1,6 +1,6 @@
 ﻿namespace CaseTrack.Domain.Cases;
 
-public class InvalidPetitionerException : DomainException
+public class InvalidPetitionerException : DomainValidationException
 {
     public InvalidPetitionerException(string message) : base(message)
     {

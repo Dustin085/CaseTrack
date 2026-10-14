@@ -87,6 +87,37 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         Assert.Equal("UnderReview", problem.RootElement.GetProperty("targetStatus").GetString());
     }
 
+    // 陳情人資料是個資：查詢時只回傳遮罩後的值，完整的值不能出現在回應的任何地方
+    [Fact]
+    public async Task GetCase_WithPetitioner_ReturnsMaskedPetitioner()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var submitResponse = await _client.PostAsJsonAsync("api/cases",
+            new
+            {
+                subject = "路燈不亮",
+                content = "中山路路燈故障",
+                petitioner = new { name = "王小明", phone = "0912345678", email = "test@example.com" },
+            },
+            cancellationToken);
+        Assert.Equal(HttpStatusCode.Created, submitResponse.StatusCode);
+
+        var response = await _client.GetAsync(submitResponse.Headers.Location, cancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var json = JsonDocument.Parse(body);
+        var petitioner = json.RootElement.GetProperty("petitioner");
+        Assert.Equal("王*明", petitioner.GetProperty("name").GetString());
+        Assert.Equal("09******78", petitioner.GetProperty("phone").GetString());
+        Assert.Equal("test********.com", petitioner.GetProperty("email").GetString());
+        Assert.Equal(JsonValueKind.Null, petitioner.GetProperty("address").ValueKind);
+
+        Assert.DoesNotContain("王小明", body);
+        Assert.DoesNotContain("0912345678", body);
+        Assert.DoesNotContain("test@example.com", body);
+    }
+
     // 只檢查 404 不夠：路由對不到時也是 404（但內容是空的），要確認是 NotFoundExceptionHandler 回的
     [Fact]
     public async Task GetCase_WithNonexistentId_ReturnsNotFoundProblem()
@@ -109,6 +140,23 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
             cancellationToken);
 
         await AssertValidationProblemAsync(response, "Subject");
+    }
+
+    // 「電話與 Email 至少一項」是 Domain 的規則（DomainValidationException），要回 400 而不是 409
+    [Fact]
+    public async Task SubmitCase_WithoutContact_ReturnsBadRequestWithDetail()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        var response = await _client.PostAsJsonAsync("api/cases",
+            new { subject = "路燈不亮", content = "中山路路燈故障", petitioner = new { name = "王小明", phone = "  " } },
+            cancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(ProblemJson, response.Content.Headers.ContentType?.MediaType);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+        Assert.Equal("資料不符合規定", problem.RootElement.GetProperty("title").GetString());
+        Assert.Equal("電話與 Email 至少需填寫一項", problem.RootElement.GetProperty("detail").GetString());
     }
 
     [Fact]

@@ -25,13 +25,19 @@ internal sealed class DomainExceptionHandler : IExceptionHandler
         {
             return false;
         }
+        // 資料不合法 → 400；跟目前的狀態衝突 → 409。
+        // 依基底類別判斷，不逐一列出例外型別：Domain 新增驗證類的例外時，這裡不用改。
+        var (status, title) = domainException is DomainValidationException
+            ? (StatusCodes.Status400BadRequest, "資料不符合規定")
+            : (StatusCodes.Status409Conflict, "此操作不符合案件目前的狀態");
+
         var problemDetails = new ProblemDetails
         {
-            Title = "此操作不符合案件目前的狀態",
+            Title = title,
             Detail = domainException.Message,
-            Status = StatusCodes.Status409Conflict
+            Status = status
         };
-        httpContext.Response.StatusCode = StatusCodes.Status409Conflict;
+        httpContext.Response.StatusCode = status;
 
         if (exception is InvalidCaseStatusTransitionException transitionException)
         {
