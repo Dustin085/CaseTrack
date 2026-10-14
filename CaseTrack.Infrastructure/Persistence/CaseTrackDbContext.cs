@@ -1,6 +1,7 @@
 ﻿using CaseTrack.Application.Abstractions;
 using CaseTrack.Application.Exceptions;
 using CaseTrack.Domain.Cases;
+using CaseTrack.Infrastructure.Persistence.Auditing;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaseTrack.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ public class CaseTrackDbContext : DbContext, IUnitOfWork
     }
 
     public DbSet<Case> Cases => Set<Case>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
