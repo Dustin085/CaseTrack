@@ -216,3 +216,107 @@ LocalDB 反覆啟動失敗。我從錯誤記錄看到 SQL Server 其實有啟動
 - 處理方式從強制結束程序改成透過 named pipe 連進去執行 `SHUTDOWN`，正常關閉。
 - 所有 LocalDB 執行個體的 .mdf 預設在同一個資料夾，資料庫名稱不能重複。
 - 測試的連線字串改成可以用環境變數覆蓋，換 Docker 或上 CI 時測試程式碼不用改。
+
+---
+
+## 2026-10-12～14：樂觀併發、逾期排程、稽核軌跡、陳情人資料與個資遮罩
+
+### 13. 兩個人同時修改同一個案件，怎麼處理？
+
+**30 秒版本**
+用樂觀併發控制。`Cases` 表有一個 SQL Server 的 `rowversion` 欄位，每次 UPDATE 資料庫都會自動改它。EF Core 會把讀出時的值放進 UPDATE 的 WHERE 條件，如果影響 0 筆，代表讀出之後已被別人改過，EF 丟出 `DbUpdateConcurrencyException`。我在 Unit of Work 裡把它轉成 Application 層的 `ConcurrencyConflictException`，API 回 409，請使用者重新讀取。
+
+**展開**
+- **問題是「遺失更新」**：A、B 同時讀出審核中的案件，A 退件、B 結案，沒有控制的話後存的會蓋掉先存的，而且沒有任何人知道。
+- **為什麼用樂觀鎖不用悲觀鎖**：陳情案件同時被兩個人改的機率很低，悲觀鎖會讓每次讀取都鎖住資料，代價太高。
+- **`RowVersion` 用影子屬性**：這是資料庫的技術細節，Domain 不需要知道，`Case` 類別上沒有這個屬性。
+- **例外轉換放在 `CaseTrackDbContext` 明確實作的 `IUnitOfWork.SaveChangesAsync`**：Application 層不認識 EF 的例外型別，依賴方向不會被破壞。
+- 排程遇到併發衝突時（例如民眾剛好在那一刻補件），**只略過那一筆**，下一輪再判斷。
+
+**證據**：`CasePersistenceTests.SaveChanges_WhenConcurrentUpdateOccurs_ThrowsConcurrencyConflict`。
+
+---
+
+### 14. 定時排程怎麼設計？（逾期 14 天未補件自動退件）
+
+**30 秒版本**
+用 `BackgroundService` + `PeriodicTimer` 定時掃描。先查出逾期案件的 Id，再**每個案件開一個新的 DI scope**，用跟 API 相同的 Handler 處理。Handler 會**重新讀取並再判斷一次**是否逾期，因為從查詢到處理之間，民眾可能剛好補件了。
+
+**展開**
+- **check-then-act（TOCTOU）**：查詢時逾期，不代表處理時還逾期。所以 Handler 讀出案件後再呼叫 `IsSupplementOverdue(now)`，不是的話就安靜地回傳 `false`；真的同時發生時，還有樂觀鎖擋住。
+- **為什麼每個案件一個 scope**：DbContext 會追蹤它讀出的所有 entity。如果整批共用一個 DbContext，某一筆存檔失敗後還留在變更追蹤器裡，下一筆 `SaveChanges` 會把它再存一次，**一筆壞掉的資料害整批都存不進去**。
+- **BackgroundService 是 Singleton**，不能直接注入 Scoped 的 DbContext（會在啟動時得到 captive dependency 的錯誤），要注入 `IServiceScopeFactory` 自己建立 scope。
+- **迴圈裡要接住例外**：BackgroundService 裡未處理的例外會讓整個應用程式停止（.NET 6 之後的預設行為，`BackgroundServiceExceptionBehavior.StopHost`）。但要排除 `OperationCanceledException`，那是正常關機。
+- **時間可以注入**：`TimeProvider` + `PeriodicTimer(interval, timeProvider)`，測試裡用固定的時間，不用真的等 14 天。
+- **規則寫兩次的風險**：逾期條件在 Domain（`IsSupplementOverdue`）和 SQL 查詢裡各一份，因為 EF 沒辦法翻譯自訂的 C# 方法。用整合測試確認兩者一致，並用測試把「14 天」釘死。
+- 間隔、批次大小用 Options 模式設定（≈ Spring 的 `@ConfigurationProperties`），開發環境 30 秒、正式環境 1 小時。
+
+**證據**：`OverdueSupplementScanner`、`RejectOverdueCaseHandler`；`OverdueSupplementTests.HandleAsync_WhenSupplementAlreadySubmitted_LeavesCaseUnchanged`。
+
+---
+
+### 15. 稽核軌跡怎麼做？怎麼確保稽核紀錄跟實際資料一致？
+
+**30 秒版本**
+用 EF Core 的 `SaveChangesInterceptor`，在 **`SavingChanges`**（存檔之前）讀取變更追蹤器，把每筆新增、修改、刪除轉成 `AuditEntry`，加進**同一個 DbContext**。這樣稽核紀錄和業務資料在**同一個交易**裡寫入，業務資料沒寫進去，稽核也不會寫進去。我用一個併發衝突的測試證明這點，並做了反向驗證。
+
+**展開**
+- **記什麼**：誰（`ICurrentUser`，排程是 `system`）、什麼時候（UTC）、哪一筆、新增／修改／刪除、改了哪些欄位的前後值（JSON）。修改只記錄真的改過的欄位。
+- **為什麼是 `SavingChanges` 不是 `SavedChanges`**：`SavedChanges` 時業務資料已經 commit，這時加的稽核紀錄要再存一次，而且是另一個交易。
+- **EF 的 `SaveChanges` 本身就是一個交易**，所以不需要 Spring 的 `@Transactional`；每個用例只呼叫一次 `SaveChanges`，一個用例就是一個交易。
+- **攔截器的限制（要主動說）**：只看得到經過變更追蹤器的修改。`ExecuteUpdate`、直接執行 SQL、Dapper 都會繞過；需要完整涵蓋時要用 SQL Server 的 Temporal Table 或資料庫層的稽核。
+- **同步和非同步是兩個獨立的覆寫點**：我一開始只覆寫了 `SavingChangesAsync`，複習時發現呼叫同步的 `SaveChanges()` 會**靜靜地跳過稽核**。補上覆寫和測試，反向驗證確認測試抓得到。
+- **為什麼不用 Domain Events**：攔截器不需要在每個業務方法裡發事件，不會漏。Domain Events 留給「通知民眾」這種需要表達業務意義的場景。
+- 「誰看了個資」是另一個需求（查詢紀錄），攔截器只記錄修改，不記錄讀取。
+
+**證據**：`AuditInterceptor`；`AuditInterceptorTests`：`SaveChanges_ConcurrencyConflict_DoesNotAddAuditEntry`（反向驗證：改成在交易外寫入稽核，測試失敗）、`SaveChanges_StartReview_RecordsOnlyStatusChange`、`SaveChanges_Synchronous_AddsAuditEntry`。
+
+---
+
+### 16. 你怎麼處理個資？
+
+**30 秒版本**
+三個層次。**蒐集**：依最小蒐集原則，陳情只需要聯絡得到人，所以收姓名和電話或 Email，不收身分證字號。**顯示**：API 回傳時遮罩（`王*明`、`09******78`）。**稽核**：稽核表也是個資外洩的管道，所以個資欄位在稽核紀錄裡也只存遮罩後的值。
+
+**展開**
+- **選填的個資欄位是最差的設計**：大部分人不填，業務價值接近零；但只要有一個人填了，遮罩、存取紀錄、加密、外洩通報的成本一樣都少不了。原則是「業務上需要就必填，不需要就不收」。
+- **怎麼標記哪些欄位是個資**：在 EF 的 Configuration 加上自訂的 `.IsPersonalData()`（EF 的 annotation），稽核攔截器從模型讀出標記。標記跟欄位對應寫在同一個地方，新增欄位時不容易漏；不影響資料表結構，不需要 migration。
+- **遮罩規則放在 Application**：稽核（Infrastructure）和 API 回應都要用，兩者共同依賴的是 Application，規則只寫一份。
+- **API 的遮罩放在 Handler，不是 Controller**：要不要遮罩取決於「誰在看」，承辦人一定要看到完整電話才能聯絡民眾。這是業務規則加上授權，之後做授權時會改成依角色決定，並寫入個資查詢紀錄。目前還沒有登入，所以一律遮罩，比較安全的預設值。
+- **罕見字**：.NET 字串是 UTF-16，罕見字（例如 `𠀀`）佔兩個 `char`，用 `string.Length` 切會變亂碼，所以用 `StringInfo` 以文字元素計算。戶政資料裡罕見字很常見。
+- **測試不依賴 JSON 結構**：`Assert.DoesNotContain("0912345678", body)`，不管格式怎麼改，完整的電話出現在任何地方測試都會失敗。
+- 測試抓到的 bug：`Convert.ToString(null)` 回傳 `""` 不是 `null`，「沒填」被記成「填了空字串」。
+
+**證據**：`PersonalDataMasker`、`PersonalDataAnnotations`；`AuditInterceptorTests.SaveChanges_NewCase_RecordsMaskedPetitionerFieldsWithPrefix`、`CaseWorkflowApiTests.GetCase_WithPetitioner_ReturnsMaskedPetitioner`。
+
+---
+
+### 17. 值物件在 EF Core 裡怎麼對應？遇過什麼問題？
+
+**30 秒版本**
+陳情人資料是值物件（`sealed record Petitioner`），代表送件當時的快照，用 EF Core 的 `ComplexProperty` 攤平存在 `Cases` 表裡（`Petitioner_Name`…），≈ JPA 的 `@Embedded`。我實際比較過 `OwnsOne`：Owned Type 其實是有隱藏主鍵的 entity，整個換掉值物件時會被追蹤成「刪除舊的 + 新增新的」，稽核紀錄會看不懂；`ComplexProperty` 則是「案件的電話被修改」，語意才正確。
+
+**展開**
+- **為什麼是值物件不是獨立的資料表**：跟訂單上的收件地址一樣，民眾之後換電話，舊案件記錄的仍是當時的聯絡方式。等民眾有帳號時，才會是「案件指向會員 + 案件上的聯絡資料快照」。
+- **不合法的值物件建立不出來**：驗證寫在建構子；屬性只有 `get`、沒有 `init`，因為 record 的 `with` 會複製物件但**不經過建構子**，有 `init` 就能繞過驗證。
+- **坑 1：EF 不能用建構子參數綁定 Complex Type**，`Case` 要加一個 `private` 的無參數建構子給 EF 使用（≈ JPA 要求的 `protected` 無參數建構子）。
+- **坑 2：舊資料讀不出來**：EF 讀資料時會優先呼叫參數相符的建構子，驗證也跟著執行；migration 之前的舊案件姓名是空字串，一讀就拋例外。解法是 `Petitioner` 也加 EF 專用的無參數建構子。原則：**驗證只在建立時做，讀取時信任資料庫**，因為規則會隨時間變嚴格，舊資料不符合新規則也必須讀得出來。我用直接寫 SQL 的方式模擬 migration 之前的資料，寫成測試。
+- **坑 3：稽核攔截器漏掉 Complex Type**：它的欄位在 `entry.ComplexProperties`，不在 `entry.Properties`，不處理的話陳情人資料完全不會被稽核，也不會報錯。欄位名稱加前綴 `Petitioner.Phone` 避免撞名。
+
+**證據**：`CaseConfiguration`（`ComplexProperty` 的註解）、`LegacyDataTests.GetCase_PetitionerViolatesCurrentRules_StillLoads`。
+
+---
+
+### 18. 什麼時候回 400、409、500？
+
+**30 秒版本**
+看錯誤是從哪裡來的：**使用者送來的資料不合法** → 400，改了再送就會成功；**資料沒問題，但案件目前的狀態不允許** → 409，例如已結案不能退件；**系統內部的問題** → 500。Domain 的例外分成兩類，`DomainValidationException` 對應 400，其他 `DomainException` 對應 409。
+
+**展開**
+- **Domain 只負責分類，不知道 HTTP**：不像 Spring 在例外上標 `@ResponseStatus`，我讓 Domain 表達「這是什麼性質的錯誤」，由 Api 的例外處理器決定對應哪個狀態碼。
+- 處理器依**基底類別**判斷，不逐一列出例外型別，所以 Domain 新增驗證類的例外時，Api 不用改。
+- 「電話與 Email 至少一項」跨兩個欄位，單一欄位的驗證標註表達不了，所以放在 Domain，不在 API 層再寫一份。取捨：這種 400 沒有欄位層級的 `errors`，前端會收到兩種格式的 400。
+- 「補件時間早於要求補件時間」不是 400：時間是伺服器產生的，使用者怎麼改都沒用。
+- **為什麼不用 Result Pattern**：失敗是流程的正常結果時用回傳值（例如排程的 Handler 回傳 `bool`），代表程式或資料不合法時用例外。
+
+**證據**：`DomainValidationException`、`DomainExceptionHandler`；`CaseWorkflowApiTests.SubmitCase_WithoutContact_ReturnsBadRequestWithDetail`。
