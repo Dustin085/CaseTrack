@@ -1,4 +1,5 @@
 using CaseTrack.Domain.Cases;
+using CaseTrack.Domain.Departments;
 
 namespace CaseTrack.Tests;
 
@@ -6,6 +7,7 @@ public class CaseStatusTransitionTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 5, 9, 0, 0, TimeSpan.FromHours(8));
     private static readonly Petitioner Petitioner = new("王小明", "0912345678", null, null);
+    private static readonly Department Department = new("001", "Test");
 
     // ── 建立 ─────────────────────────────────────────────
 
@@ -41,6 +43,7 @@ public class CaseStatusTransitionTests
     public void StartReview_WhenSubmitted_StatusIsUnderReview()
     {
         var @case = CreateCaseInStatus(CaseStatus.Submitted);
+        @case.AssignTo(Department.Id);
 
         @case.StartReview();
 
@@ -333,11 +336,92 @@ public class CaseStatusTransitionTests
         Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
     }
 
+    // ── Department ───────────────────────────────────────
+    [Fact]
+    public void Constructor_WhenCreated_DepartmentIdIsNull()
+    {
+        var @case = CreateTestCase();
+
+        Assert.Null(@case.DepartmentId);
+    }
+
+    [Fact]
+    public void AssignTo_SubmittedCase_DepartmentIdSet()
+    {
+        var @case = CreateTestCase();
+
+        @case.AssignTo(Department.Id);
+
+        Assert.Equal(CaseStatus.Submitted, @case.Status);
+        Assert.Equal(Department.Id, @case.DepartmentId);
+    }
+
+    [Fact]
+    public void AssignTo_AssignedCase_DepartmentIdChanged()
+    {
+        var @case = CreateTestCase();
+        @case.AssignTo(Department.Id);
+        var itDepartment = new Department("002", "IT department");
+
+        @case.AssignTo(itDepartment.Id);
+
+        Assert.Equal(itDepartment.Id, @case.DepartmentId);
+    }
+
+    [Theory]
+    [InlineData(CaseStatus.UnderReview)]
+    [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.Closed)]
+    [InlineData(CaseStatus.Rejected)]
+    public void AssignTo_WhenNotSubmitted_ThrowsCaseAssignmentNotAllowed(CaseStatus status)
+    {
+        var @case = CreateCaseInStatus(status);
+
+        var exception = Assert.Throws<CaseAssignmentNotAllowedException>(() => @case.AssignTo(Department.Id));
+        Assert.Equal(status, exception.CurrentStatus);
+    }
+
+    [Fact]
+    public void AssignTo_EmptyDepartmentId_ThrowsArgumentException()
+    {
+        var @case = CreateTestCase();
+
+        Assert.Throws<ArgumentException>(() => @case.AssignTo(Guid.Empty));
+        Assert.Null(@case.DepartmentId);
+    }
+
+    [Fact]
+    public void StartReview_WhenNotAssigned_ThrowsCaseNotAssigned()
+    {
+        var @case = CreateTestCase();
+
+        Assert.Throws<CaseNotAssignedException>(@case.StartReview);
+        Assert.Equal(CaseStatus.Submitted, @case.Status);
+    }
+
+    // 釘住檢查順序：先檢查狀態，再檢查有沒有分派。
+    // 已退件的案件就算分派了也不能受理，先回報「已退件」，使用者才不會白跑一趟去分派
+    [Fact]
+    public void StartReview_WhenRejectedAndNotAssigned_ThrowsInvalidTransitionFirst()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.Rejected);
+        Assert.Null(@case.DepartmentId);
+
+        Assert.Throws<InvalidCaseStatusTransitionException>(@case.StartReview);
+    }
+
     // ── Helpers ──────────────────────────────────────────
 
     private static Case CreateTestCase()
     {
         return new Case("20261005-0001", "Test Subject", "Test Content", Petitioner);
+    }
+
+    // 受理之前一定要先分派
+    private static void AssignAndStartReview(Case @case)
+    {
+        @case.AssignTo(Department.Id);
+        @case.StartReview();
     }
 
     private static Case CreateCaseInStatus(CaseStatus status)
@@ -349,14 +433,14 @@ public class CaseStatusTransitionTests
             case CaseStatus.Submitted:
                 break;
             case CaseStatus.UnderReview:
-                @case.StartReview();
+                AssignAndStartReview(@case);
                 break;
             case CaseStatus.AwaitingSupplement:
-                @case.StartReview();
+                AssignAndStartReview(@case);
                 @case.RequestSupplement("Need more information.", Now);
                 break;
             case CaseStatus.Closed:
-                @case.StartReview();
+                AssignAndStartReview(@case);
                 @case.Close();
                 break;
             case CaseStatus.Rejected:

@@ -12,6 +12,7 @@ public class Case
     public CaseStatus Status { get; private set; } = CaseStatus.Submitted;
     public IReadOnlyCollection<SupplementRequest> SupplementRequests => _supplementRequests.AsReadOnly();
     public string? RejectionReason { get; private set; }
+    public Guid? DepartmentId { get; private set; } // null = 待分派
 
     // 案件編號（每日流水號）需要查資料庫才能保證不重複，由外部產生後傳入
     public Case(string caseNumber, string subject, string content, Petitioner petitioner)
@@ -40,6 +41,10 @@ public class Case
     public void StartReview()
     {
         EnsureCanTransition(CaseStatus.UnderReview, CaseStatus.Submitted);
+        if (DepartmentId is null)
+        {
+            throw new CaseNotAssignedException();
+        }
         Status = CaseStatus.UnderReview;
     }
 
@@ -97,6 +102,21 @@ public class Case
             throw new InvalidOperationException("沒有逾期的補件");
         }
         Reject("逾期未補件");
+    }
+
+    // 分派不改變狀態；已送出的案件可以重新分派（分派人員發現分錯了直接改），受理之後要換單位是「轉派」
+    public void AssignTo(Guid departmentId)
+    {
+        // Guid 的「沒有值」是 Guid.Empty，不是空字串：換成 Guid 之後，原本針對字串的空白檢查不會自動轉換過來
+        if (departmentId == Guid.Empty)
+        {
+            throw new ArgumentException("單位 Id 不能是空的", nameof(departmentId));
+        }
+        if (Status != CaseStatus.Submitted)
+        {
+            throw new CaseAssignmentNotAllowedException(Status);
+        }
+        DepartmentId = departmentId;
     }
 
     private void EnsureCanTransition(CaseStatus target, params CaseStatus[] allowedFrom)
