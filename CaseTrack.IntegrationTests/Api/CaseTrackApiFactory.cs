@@ -17,6 +17,9 @@ public sealed class CaseTrackApiFactory : WebApplicationFactory<Program>
     // 沒有登入的民眾
     public HttpClient CreateCitizenClient() => CreateClient();
 
-    // 本單位的承辦人
+    // 工務局的承辦人
     public HttpClient CreateOfficerClient() => CreateClient().WithBearerToken(TestTokens.CreateOfficerToken());
+
+    // 分派人員
+    public HttpClient CreateDispatcherClient() => CreateClient().WithBearerToken(TestTokens.CreateDispatcherToken());
 }

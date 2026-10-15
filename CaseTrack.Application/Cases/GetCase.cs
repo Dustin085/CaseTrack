@@ -11,6 +11,7 @@ public sealed record CaseDetails(
     string Subject,
     string Content,
     string Status,
+    Guid? DepartmentId,
     string? RejectionReason,
     PetitionerDetails Petitioner,
     IReadOnlyList<SupplementRequestDetails> SupplementRequests);
@@ -54,6 +55,7 @@ public sealed class GetCaseHandler
             @case.Subject,
             @case.Content,
             @case.Status.ToString(),
+            @case.DepartmentId,
             @case.RejectionReason,
             ToMaskedDetails(@case.Petitioner),
             supplementRequests);

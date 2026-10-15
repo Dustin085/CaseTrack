@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using CaseTrack.Application.Authorization;
+using CaseTrack.Infrastructure.Persistence.Configurations;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 
@@ -18,11 +19,18 @@ internal static class TestTokens
     public const string Issuer = "casetrack-dev";
     public const string Audience = "casetrack-api";
 
+    // 工務局的承辦人：token 裡的單位跟案件的 DepartmentId 是同一種值（Guid），授權時才能比對
     public const string OfficerUserId = "u-officer-1";
-    public const string OfficerDepartmentId = "PWD";
+    public static readonly Guid OfficerDepartmentId = DepartmentSeed.PublicWorks;
+
+    // 分派人員不屬於任何承辦單位
+    public const string DispatcherUserId = "u-dispatcher-1";
 
     public static string CreateOfficerToken() =>
-        Create(OfficerUserId, [Roles.CaseOfficer], OfficerDepartmentId);
+        Create(OfficerUserId, [Roles.CaseOfficer], OfficerDepartmentId.ToString());
+
+    public static string CreateDispatcherToken() =>
+        Create(DispatcherUserId, [Roles.Dispatcher]);
 
     public static string Create(
         string userId,

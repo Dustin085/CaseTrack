@@ -1,4 +1,5 @@
 using CaseTrack.Api.Contracts;
+using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Cases;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -97,6 +98,20 @@ public sealed class CasesController : ControllerBase
         CancellationToken cancellationToken)
     {
         await handler.HandleAsync(id, cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize(Roles = Roles.Dispatcher)]
+    [HttpPost("{id:guid}/assignment")]
+    public async Task<ActionResult> AssignDepartment(
+        [FromRoute] Guid id,
+        [FromBody] AssignCaseRequest request,
+        [FromServices] AssignCaseHandler handler,
+        CancellationToken cancellationToken)
+    {
+        // [Required] 讓 [ApiController] 在進入這個方法之前就擋掉 null（回 400），所以這裡一定有值。
+        // 編譯器看不到這件事，用 ! 告訴它；萬一驗證被關掉，.Value 會直接拋例外，而不是默默變成 Guid.Empty
+        await handler.HandleAsync(id, request.DepartmentId!.Value, cancellationToken);
         return NoContent();
     }
 }

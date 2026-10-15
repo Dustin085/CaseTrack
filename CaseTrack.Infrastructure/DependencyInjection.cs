@@ -19,6 +19,7 @@ public static class DependencyInjection
                 .AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
 
         services.AddScoped<ICaseRepository, CaseRepository>();
+        services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaseTrackDbContext>());
 
         services.AddSingleton(TimeProvider.System);

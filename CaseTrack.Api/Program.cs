@@ -58,6 +58,7 @@ builder.Services
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddExceptionHandler<NotFoundExceptionHandler>();
+builder.Services.AddExceptionHandler<RequestValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<ConcurrencyConflictExceptionHandler>();
 
 builder.Services.AddOptions<OverdueScanOptions>().BindConfiguration("OverdueScan");

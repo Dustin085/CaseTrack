@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using CaseTrack.Application.Authorization;
-using CaseTrack.Application.Cases;
 using CaseTrack.Domain.Cases;
 using CaseTrack.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -94,16 +93,13 @@ public class AuthenticationApiTests : IClassFixture<CaseTrackApiFactory>
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // 稽核記錄的是 token 裡的使用者 Id（sub），不是姓名，也不是 anonymous
+    // 稽核記錄的是 token 裡的使用者 Id（sub），不是姓名，也不是 anonymous；每一步記的是實際操作的人
     [Fact]
     public async Task ReviewCase_WithOfficerToken_RecordsUserIdInAudit()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var submitResponse = await _factory.CreateCitizenClient().PostAsJsonAsync("api/cases",
-            new { subject = "路燈不亮", content = "中山路路燈故障", petitioner = new { name = "王小明", phone = "0912345678" } },
-            cancellationToken);
-        var submitted = await submitResponse.Content.ReadFromJsonAsync<SubmitCaseResult>(cancellationToken);
-        Assert.NotNull(submitted);
+        var submitted = await _factory.CreateCitizenClient().SubmitCaseAsync();
+        await _factory.CreateDispatcherClient().AssignAsync(submitted.Id, TestTokens.OfficerDepartmentId);
 
         var reviewResponse = await _factory.CreateOfficerClient()
             .PostAsync($"api/cases/{submitted.Id}/review", null, cancellationToken);
@@ -115,7 +111,7 @@ public class AuthenticationApiTests : IClassFixture<CaseTrackApiFactory>
             .OrderBy(a => a.Id)
             .Select(a => a.ChangedBy)
             .ToListAsync(cancellationToken);
-        Assert.Equal(["anonymous", TestTokens.OfficerUserId], changedBy);
+        Assert.Equal(["anonymous", TestTokens.DispatcherUserId, TestTokens.OfficerUserId], changedBy);
     }
 
     private async Task<HttpResponseMessage> GetNonexistentCaseAsync(string? token)
