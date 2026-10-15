@@ -17,6 +17,7 @@ public class CaseRepositoryTests
         // Arrange：在一個 scope（模擬一個請求）裡新增並存檔
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "瑞光路301號附近", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
 

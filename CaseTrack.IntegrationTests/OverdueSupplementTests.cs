@@ -28,6 +28,7 @@ public class OverdueSupplementTests
 
         // Arrange：在一個 scope 裡建立「15 天前要求補件」的案件
         var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
         await using (var writeScope = provider.CreateAsyncScope())
@@ -54,6 +55,7 @@ public class OverdueSupplementTests
 
         // Arrange：在一個 scope 裡建立「13 天前要求補件」的案件
         var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline + TimeSpan.FromDays(1));
         await using (var writeScope = provider.CreateAsyncScope())
@@ -79,6 +81,7 @@ public class OverdueSupplementTests
 
         // Arrange：在一個 scope 裡建立「15 天前要求補件」的案件
         var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
         await using (var writeScope = provider.CreateAsyncScope())
@@ -113,6 +116,7 @@ public class OverdueSupplementTests
 
         // Arrange：15 天前要求補件，但民眾昨天已經補件了（回到審核中）
         var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
         @case.SubmitSupplement(Now - TimeSpan.FromDays(1));
@@ -147,10 +151,12 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         var overdueCase = new Case(NewCaseNumber(), "Overdue Case", "Overdue case content", TestData.Petitioner);
+        overdueCase.AssignTo(TestData.DepartmentId);
         overdueCase.StartReview();
         overdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
 
         var notOverdueCase = new Case(NewCaseNumber(), "Nonoverdue Case", "Nonoverdue case content", TestData.Petitioner);
+        notOverdueCase.AssignTo(TestData.DepartmentId);
         notOverdueCase.StartReview();
         notOverdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline + TimeSpan.FromDays(1));
 

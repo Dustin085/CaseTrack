@@ -1,4 +1,5 @@
 ﻿using CaseTrack.Domain.Cases;
+using CaseTrack.Domain.Departments;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -39,6 +40,12 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
             .HasForeignKey("CaseId")
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Case 只存單位的 Id（聚合之間只用 Id 參照），但資料庫仍然要保證這個 Id 存在
+        builder.HasOne<Department>()
+            .WithMany()
+            .HasForeignKey(c => c.DepartmentId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // 樂觀併發控制：SQL Server 在每次 UPDATE 時自動更新這個值，EF 會把讀出時的值放進 UPDATE 的 WHERE 條件。
         // 值不一致代表讀出之後已被別人修改，EF 會丟出 DbUpdateConcurrencyException。

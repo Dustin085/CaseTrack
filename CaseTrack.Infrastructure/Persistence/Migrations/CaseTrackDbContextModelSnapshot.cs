@@ -37,6 +37,9 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -62,26 +65,32 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
 
                             b1.Property<string>("Address")
                                 .HasMaxLength(200)
-                                .HasColumnType("nvarchar(200)");
+                                .HasColumnType("nvarchar(200)")
+                                .HasAnnotation("CaseTrack:PersonalData", true);
 
                             b1.Property<string>("Email")
                                 .HasMaxLength(254)
-                                .HasColumnType("nvarchar(254)");
+                                .HasColumnType("nvarchar(254)")
+                                .HasAnnotation("CaseTrack:PersonalData", true);
 
                             b1.Property<string>("Name")
                                 .IsRequired()
                                 .HasMaxLength(50)
-                                .HasColumnType("nvarchar(50)");
+                                .HasColumnType("nvarchar(50)")
+                                .HasAnnotation("CaseTrack:PersonalData", true);
 
                             b1.Property<string>("Phone")
                                 .HasMaxLength(20)
-                                .HasColumnType("nvarchar(20)");
+                                .HasColumnType("nvarchar(20)")
+                                .HasAnnotation("CaseTrack:PersonalData", true);
                         });
 
                     b.HasKey("Id");
 
                     b.HasIndex("CaseNumber")
                         .IsUnique();
+
+                    b.HasIndex("DepartmentId");
 
                     b.ToTable("Cases", (string)null);
                 });
@@ -114,6 +123,49 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("SupplementRequests", (string)null);
+                });
+
+            modelBuilder.Entity("CaseTrack.Domain.Departments.Department", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Departments", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f3c0543e-db7c-464b-8016-d71088ef6b83"),
+                            Code = "PWD",
+                            Name = "工務局"
+                        },
+                        new
+                        {
+                            Id = new Guid("05e97217-8eee-4551-8ff5-5bd9cb1762d0"),
+                            Code = "ENV",
+                            Name = "環境保護局"
+                        },
+                        new
+                        {
+                            Id = new Guid("2f0c5ba0-9486-44b7-ab5b-a7032e4dc493"),
+                            Code = "TRA",
+                            Name = "交通局"
+                        });
                 });
 
             modelBuilder.Entity("CaseTrack.Infrastructure.Persistence.Auditing.AuditEntry", b =>
@@ -169,6 +221,14 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                     b.HasKey("Date");
 
                     b.ToTable("CaseNumberCounters", (string)null);
+                });
+
+            modelBuilder.Entity("CaseTrack.Domain.Cases.Case", b =>
+                {
+                    b.HasOne("CaseTrack.Domain.Departments.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("CaseTrack.Domain.Cases.SupplementRequest", b =>

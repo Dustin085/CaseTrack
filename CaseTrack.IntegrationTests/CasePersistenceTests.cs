@@ -1,6 +1,8 @@
 ﻿using CaseTrack.Application.Abstractions;
 using CaseTrack.Application.Exceptions;
 using CaseTrack.Domain.Cases;
+using CaseTrack.Domain.Departments;
+using CaseTrack.Infrastructure.Persistence.Configurations;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,6 +25,7 @@ public class CasePersistenceTests
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
         @case.SubmitSupplement(Now.AddDays(1));
@@ -59,6 +62,7 @@ public class CasePersistenceTests
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
 
         // Arrange：用一個 DbContext 寫入
@@ -139,6 +143,7 @@ public class CasePersistenceTests
         // Arrange：第 1 次補件已補、第 2 次補件等待中
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
         @case.SubmitSupplement(Now.AddDays(1));
@@ -177,6 +182,7 @@ public class CasePersistenceTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         await using (var writeContext = _fixture.CreateContext())
         {
@@ -202,6 +208,76 @@ public class CasePersistenceTests
         var reloaded = await readContext.Cases
             .SingleAsync(c => c.Id == @case.Id, cancellationToken);
         Assert.Equal(CaseStatus.Rejected, reloaded.Status);
+    }
+
+    // ── 分派 ─────────────────────────────────────────────
+
+    // migration 用 HasData 預先放入的單位：Id 固定，程式碼（DepartmentSeed）和資料庫要一致
+    [Fact]
+    public async Task Migrate_SeedsDepartments_WithFixedIds()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+
+        await using var context = _fixture.CreateContext();
+        var publicWorks = await context.Set<Department>()
+            .SingleAsync(d => d.Id == DepartmentSeed.PublicWorks, cancellationToken);
+
+        Assert.Equal("PWD", publicWorks.Code);
+        Assert.Equal("工務局", publicWorks.Name);
+    }
+
+    [Fact]
+    public async Task AssignTo_ExistingDepartment_PersistsDepartmentId()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        await using (var writeContext = _fixture.CreateContext())
+        {
+            writeContext.Cases.Add(@case);
+            await writeContext.SaveChangesAsync(cancellationToken);
+        }
+
+        // Act：在另一個 DbContext（另一個請求）裡讀出、分派、存檔
+        await using (var assignContext = _fixture.CreateContext())
+        {
+            var loaded = await assignContext.Cases.SingleAsync(c => c.Id == @case.Id, cancellationToken);
+            loaded.AssignTo(DepartmentSeed.Transportation);
+            await assignContext.SaveChangesAsync(cancellationToken);
+        }
+
+        // Assert
+        await using var readContext = _fixture.CreateContext();
+        var reloaded = await readContext.Cases.SingleAsync(c => c.Id == @case.Id, cancellationToken);
+        Assert.Equal(DepartmentSeed.Transportation, reloaded.DepartmentId);
+        Assert.Equal(CaseStatus.Submitted, reloaded.Status);
+    }
+
+    // Domain 只擋得住 Guid.Empty，不知道資料庫裡有哪些單位；分派到不存在的單位，由外鍵擋下（最後一道防線）
+    [Fact]
+    public async Task SaveChanges_AssignedToNonexistentDepartment_ThrowsForeignKeyViolation()
+    {
+        // Arrange
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        @case.AssignTo(Guid.NewGuid());
+
+        // Act & Assert
+        await using (var writeContext = _fixture.CreateContext())
+        {
+            writeContext.Cases.Add(@case);
+
+            var exception = await Assert.ThrowsAsync<DbUpdateException>(
+                () => writeContext.SaveChangesAsync(cancellationToken));
+
+            // 確認是「因為外鍵」而失敗，而不是其他寫入錯誤（547 = 違反條件約束，包括外鍵）
+            var sqlException = Assert.IsType<SqlException>(exception.InnerException);
+            Assert.Equal(547, sqlException.Number);
+        }
+
+        // Assert：整筆案件都沒有寫進去
+        await using var readContext = _fixture.CreateContext();
+        Assert.False(await readContext.Cases.AnyAsync(c => c.Id == @case.Id, cancellationToken));
     }
 
     private static string NewCaseNumber() => $"T-{Guid.NewGuid():N}"[..20];

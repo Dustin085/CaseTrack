@@ -94,6 +94,7 @@ public class AuditInterceptorTests
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
 
         // Act
         await AddCaseAsync(@case, cancellationToken);
@@ -126,6 +127,7 @@ public class AuditInterceptorTests
         // Arrange：兩個 scope（兩個請求）讀出同一個案件，第一個先存檔成功
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         await AddCaseAsync(@case, cancellationToken);
 
