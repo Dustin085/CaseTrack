@@ -1,13 +1,19 @@
 using CaseTrack.Api.Contracts;
 using CaseTrack.Application.Cases;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CaseTrack.Api.Controllers;
 
+// 預設拒絕：整個 Controller 都要登入，例外的端點個別加 [AllowAnonymous]。
+// 之後新增端點忘了設定，結果是「多一道登入」，而不是「少一道登入」
+[Authorize]
 [ApiController]
 [Route("api/cases")]
 public sealed class CasesController : ControllerBase
 {
+    // 民眾送出陳情，不需要登入
+    [AllowAnonymous]
     [HttpPost]
     public async Task<ActionResult<SubmitCaseResult>> SubmitCase(
         [FromBody] SubmitCaseRequest request,
@@ -81,7 +87,9 @@ public sealed class CasesController : ControllerBase
         return NoContent();
     }
 
-    // 民眾補件：補的是目前唯一一筆未補件的請求，所以不需要在網址指定是哪一筆
+    // 民眾補件：補的是目前唯一一筆未補件的請求，所以不需要在網址指定是哪一筆。
+    // 已知漏洞：民眾端還沒有登入，任何人只要知道案件的 Id 就能補件，之後改成「案件編號 + 驗證資訊」時處理
+    [AllowAnonymous]
     [HttpPost("{id:guid}/supplement-submission")]
     public async Task<ActionResult> SubmitSupplement(
         [FromRoute] Guid id,

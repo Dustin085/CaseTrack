@@ -1,8 +1,8 @@
-﻿using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Abstractions;
 
 namespace CaseTrack.IntegrationTests;
 
-internal sealed class FixedCurrentUser(string fixedName) : ICurrentUser
+internal sealed class FixedCurrentUser(string fixedUserId) : ICurrentUser
 {
-    public string Name => fixedName;
+    public string UserId => fixedUserId;
 }

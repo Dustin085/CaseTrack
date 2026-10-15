@@ -1,6 +1,31 @@
 @CaseTrack.Api_HostAddress = http://localhost:5286
 
-GET {{CaseTrack.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### 1. 取得開發用的 token（只有 Development 環境有這個端點）
+# @name devToken
+POST {{CaseTrack.Api_HostAddress}}/dev/token
+Content-Type: application/json
 
-###
+{
+  "userId": "u-officer-1",
+  "name": "王承辦",
+  "roles": ["CaseOfficer"],
+  "departmentId": "PWD"
+}
+
+### 2. 送出陳情（不需要登入）
+# @name submitCase
+POST {{CaseTrack.Api_HostAddress}}/api/cases
+Content-Type: application/json
+
+{
+  "subject": "路燈不亮",
+  "content": "中山路路燈故障",
+  "petitioner": { "name": "王小明", "phone": "0912345678" }
+}
+
+### 3. 查詢案件（帶上第 1 步的 token）
+GET {{CaseTrack.Api_HostAddress}}/api/cases/{{submitCase.response.body.$.id}}
+Authorization: Bearer {{devToken.response.body.$.accessToken}}
+
+### 4. 沒帶 token → 401
+GET {{CaseTrack.Api_HostAddress}}/api/cases/{{submitCase.response.body.$.id}}

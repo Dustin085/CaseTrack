@@ -63,7 +63,7 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
 
     private void AddAuditEntries(DbContext dbContext)
     {
-        var changedBy = _currentUser.Name;
+        var changedBy = _currentUser.UserId;
         var changedAt = _timeProvider.GetUtcNow();
 
         // 先用 ToList() 固定下來：等一下要把 AuditEntry 加進同一個 DbContext，
