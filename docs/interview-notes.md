@@ -320,3 +320,87 @@ LocalDB 反覆啟動失敗。我從錯誤記錄看到 SQL Server 其實有啟動
 - **為什麼不用 Result Pattern**：失敗是流程的正常結果時用回傳值（例如排程的 Handler 回傳 `bool`），代表程式或資料不合法時用例外。
 
 **證據**：`DomainValidationException`、`DomainExceptionHandler`；`CaseWorkflowApiTests.SubmitCase_WithoutContact_ReturnsBadRequestWithDetail`。
+
+---
+
+## 2026-10-15：JWT 身分驗證、單位與分派
+
+### 19. 你的系統怎麼做登入？為什麼選 JWT？
+
+**30 秒版本**
+API 本身不管帳號密碼，只負責驗證 token（OAuth 的 Resource Server）。確認「你是誰」交給外部的身分提供者（IdP），政府機關通常是 AD 或單一登入；開發環境用一個只存在於 Development 的 `/dev/token` 端點代替。選 JWT 是因為前端會另外部署（不同來源）、測試和 Swagger 好用，而且正式環境接 IdP 時，IdP 發的本來就是 token。
+
+**展開**
+- **JWT 和 Cookie 的取捨（要主動講）**：HttpOnly cookie 不會被 XSS 讀走，但要防 CSRF；JWT 沒有 CSRF 問題，但前端要自己保存，放 `localStorage` 會被 XSS 偷走。如果前端和 API 在同一個網域，正式的政府系統我會比較傾向 cookie 或 BFF。
+- **JWT 的限制**：登出或停權之後，token 在效期內仍然有效。我的做法是短效期（30 分鐘）、前端放記憶體，立即失效列為已知限制，之後可以加 refresh token 或黑名單。
+- **ASP.NET Core 的 Cookie 驗證跟 Spring 不一樣**：Spring 預設是 `JSESSIONID` + 伺服器端 session；ASP.NET Core 是把加密後的整張票證放在 cookie 裡，預設無狀態。多台伺服器要共用 Data Protection 金鑰，不然重啟或換一台就全部被登出。
+- **JWT 只有簽章、沒有加密**：payload 任何人都能解開來看，所以 token 裡只放使用者 Id、名稱、角色、單位，絕對不放個資。
+- **為什麼不自己管密碼**：離職、調職只要在 IdP 停用一次，所有系統同時失效；系統本身不存密碼，就不會是密碼外洩的來源。
+
+**證據**：`Program.cs` 的 `AddJwtBearer`、`Authentication/DevTokenEndpoint.cs`。
+
+---
+
+### 20. 驗證 JWT 時要檢查什麼？遇過什麼坑？
+
+**30 秒版本**
+簽章、發行者（issuer）、對象（audience）、有效期限。最大的坑是 `MapInboundClaims`：預設會把 `role`、`sub` 改名成微軟舊格式的長名稱，結果 `IsInRole` 永遠回傳 false，所有角色檢查都會靜靜地失敗、一直回 403。我在 scratchpad 先實驗確認，再設成 `false`。
+
+**展開**
+- **Audience 的意義**：同一個 IdP 發給別的系統的 token，不能拿來呼叫我的 API。我有測試：別的 audience 的 token → 401。
+- **ClockSkew 預設 5 分鐘**：token 過期後還會被接受 5 分鐘，對 30 分鐘效期太長，改成 1 分鐘，並用「過期 2 分鐘的 token → 401」釘住。
+- **金鑰管理**：開發環境放 User Secrets（專案資料夾外的 JSON 檔，不會被 commit；注意它沒有加密），正式環境用環境變數。ASP.NET Core 的設定是疊加的：appsettings → 環境設定 → User Secrets → 環境變數，後面覆蓋前面，跟 Spring Boot 的 profile 很像。
+- **設定缺值要早失敗，而且訊息要看得懂**：我原本以為 `required` 會擋住，實際上設定檔綁定用反射建立物件，會繞過 `required`，啟動時只看到 `ArgumentNullException (Parameter 's')`。改成明確檢查金鑰是否存在、長度是否至少 32 位元組，錯誤訊息直接寫怎麼修。
+- **中介軟體的順序**：`UseAuthentication` 一定要在 `UseAuthorization` 之前，反過來所有人都會被當成匿名。
+- **正式環境用 RS256**：IdP 用私鑰簽、API 只拿公鑰驗證，API 被入侵也簽不出 token；開發環境的 HS256 對稱金鑰只是替代品，切換時只改 `Program.cs`。
+
+**證據**：`AuthenticationApiTests`（過期、別的金鑰、別的 audience、沒有 token 都是 401，搭配一個合法 token 的正面對照）；反向驗證：改回 `MapInboundClaims = true`、ClockSkew 預設、不檢查 audience，各自讓對應的測試失敗。
+
+---
+
+### 21. 開發環境怎麼拿 token？怎麼確保那個後門不會出現在正式環境？
+
+**30 秒版本**
+`/dev/token` 不驗證密碼、指定誰就發誰，等於一個後門，所以用 Minimal API 寫在 `if (app.Environment.IsDevelopment())` 裡面：正式環境根本不會註冊這個路由。我用 `WebApplicationFactory` 以 Production 環境啟動 API，寫測試證明它回 404，並搭配「開發環境回 200」的正面對照，避免路徑打錯也讓測試通過。
+
+**展開**
+- **為什麼不用 Controller**：Controller 是自動掃描註冊的，不管什麼環境都存在，只能在裡面自己擋；哪天有人改壞那個 `if`，就變成正式環境的漏洞。
+- **發 token 時就檢查角色**：角色打錯字的 token 照樣發得出來，但之後每個請求都莫名其妙 403，很難查。
+- **測試不依賴開發者電腦的設定**：測試直接用寫死的「測試專用金鑰」簽 token（`UseSetting` 覆蓋 User Secrets），換電腦或上 CI 結果都一樣。我是在發現「API 測試其實偷偷讀到我電腦上的 User Secrets」之後才改的。
+- **正面對照的重要性**：只檢查「401」的測試，在 API 什麼 token 都不接受時也會通過；只檢查「404」的測試，在路徑打錯時也會通過。
+
+**證據**：`AuthenticationApiTests.DevToken_InProduction_ReturnsNotFound`、`DevToken_InDevelopment_ReturnsToken`；反向驗證：把 `if` 拿掉，Production 的測試失敗。
+
+---
+
+### 22. 身分驗證和授權差在哪？你的授權怎麼設計？
+
+**30 秒版本**
+身分驗證是「你是誰」（失敗 401），授權是「你能做什麼」（失敗 403）。授權分兩層：第一層看角色能不能做這個動作（Policy），第二層看能不能碰這一筆資料（承辦人只能看本單位的案件）。看不到的資料回 404 而不是 403，因為 403 等於告訴對方「這筆資料存在」。
+
+**展開**
+- **預設拒絕**：整個 Controller 加 `[Authorize]`，例外的端點（民眾送件）個別加 `[AllowAnonymous]`。新端點忘記設定，結果是多一道登入，而不是少一道。
+- **角色從哪裡來**：練習專案放在 token 的 claims 裡；實務上更常見的是 IdP 只管身分、系統自己有權限表（搭配權限申請和定期盤點）。我用 `ICurrentUser` 把來源隔離，改成查權限表只要換一個類別。
+- **最小權限**：「管理者」維護系統設定，不代表有業務需要看民眾個資，所以管理者不能看案件內容。
+- **資料列過濾放在哪裡**：比較過每個 Handler 自己檢查、Repository 強制傳入範圍、EF Global Query Filter。選 Repository 強制傳入，因為忘記傳就編譯不過、看 Handler 就知道套用了什麼權限、之後用 Dapper 查詢也能沿用；Global Query Filter 是隱形的，而且 Dapper 和直接執行的 SQL 不會套用。
+- **稽核記錄使用者 Id（`sub`）**：姓名會重複、會改，不能用來追查責任。有登入卻沒有 `sub` 時直接拋例外，不默默記成 anonymous；反向驗證時這個設計讓 `MapInboundClaims` 的錯誤立刻被抓到。
+
+**證據**：`CasesController`、`HttpCurrentUser`、`HttpCurrentUserTests`；資料列層級過濾正在實作（`CaseAccessScope`）。
+
+---
+
+### 23. 案件分派到單位，資料模型怎麼設計？
+
+**30 秒版本**
+`Case` 只存 `DepartmentId`，沒有 `Department` 導覽屬性，因為兩者是不同的聚合，聚合之間只用 Id 參照。但資料庫仍然用外鍵保證單位存在：EF 用 `HasOne<Department>().WithMany()` 設定沒有導覽屬性的外鍵，刪除單位時 Restrict，避免案件悄悄變回「待分派」。
+
+**展開**
+- **Domain 規則**：只有「已送出」可以分派、可以重新分派；受理之前一定要分派。檢查順序是先狀態、再分派，先回報最根本的原因，有測試釘住順序。
+- **代理鍵 vs 自然鍵**：單位用 Guid 主鍵 + 唯一的代碼，代碼要改時案件不用跟著改；代價是 token、log 裡看到的是 Guid。
+- **預先資料**：`HasData` 用匿名物件指定固定的 Guid，Domain 不需要為了種子資料開一個能指定 Id 的建構子。
+- **單位不存在回 400 不是 404**：404 是網址裡的資源（案件）不存在；單位在請求內容裡，是「送來的資料有問題」。Handler 先查單位是否存在，回 `ValidationProblemDetails`，跟 `[ApiController]` 的格式一致；外鍵是最後一道防線（查詢和存檔之間被刪掉）。
+- **值型別的必填欄位要用 `Guid?`**：用 `Guid` 的話，沒填會變成 `Guid.Empty`，繞過 `[Required]`。我原本以為會變成 500，反向驗證時發現其實是 400 但訊息錯成「單位不存在」，測試也因此改成同時檢查錯誤訊息。
+- **換型別時原本的檢查不會跟著換**：單位 Id 從字串改成 Guid 之後，要另外擋 `Guid.Empty`。
+- **反向驗證要精確**：第一次拿掉 EF 的外鍵設定，模型和 migration 對不上，所有測試一起失敗，證明不了什麼；改成只拿掉 migration 裡建立外鍵的那一段，只有外鍵的測試失敗。
+
+**證據**：`CaseConfiguration`、`DepartmentConfiguration`；`CasePersistenceTests.SaveChanges_AssignedToNonexistentDepartment_ThrowsForeignKeyViolation`（SQL 錯誤碼 547）、`AssignmentApiTests`。
