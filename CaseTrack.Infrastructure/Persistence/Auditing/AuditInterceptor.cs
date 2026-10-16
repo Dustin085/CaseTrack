@@ -69,7 +69,8 @@ public sealed class AuditInterceptor : SaveChangesInterceptor
         // 先用 ToList() 固定下來：等一下要把 AuditEntry 加進同一個 DbContext，
         // 一邊列舉變更追蹤器、一邊新增，會修改正在列舉的集合
         var auditEntries = dbContext.ChangeTracker.Entries()
-            .Where(entry => entry.Entity is not AuditEntry)
+            // 紀錄本身不再稽核：稽核紀錄和個資查詢紀錄只能新增，再記一份只是重複
+            .Where(entry => entry.Entity is not (AuditEntry or PersonalDataAccessEntry))
             .Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .Select(entry => new AuditEntry(
                 entry.Metadata.ClrType.Name,

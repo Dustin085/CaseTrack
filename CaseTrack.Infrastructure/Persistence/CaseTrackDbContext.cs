@@ -16,6 +16,7 @@ public class CaseTrackDbContext : DbContext, IUnitOfWork
     public DbSet<Case> Cases => Set<Case>();
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
     public DbSet<Department> Departments => Set<Department>();
+    public DbSet<PersonalDataAccessEntry> PersonalDataAccessEntries => Set<PersonalDataAccessEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

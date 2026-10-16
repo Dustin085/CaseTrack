@@ -20,6 +20,7 @@ public static class DependencyInjection
 
         services.AddScoped<ICaseRepository, CaseRepository>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
+        services.AddScoped<IPersonalDataAccessLog, PersonalDataAccessLog>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaseTrackDbContext>());
 
         services.AddSingleton(TimeProvider.System);

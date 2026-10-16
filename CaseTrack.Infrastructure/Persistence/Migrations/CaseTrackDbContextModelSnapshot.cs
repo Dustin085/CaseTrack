@@ -210,6 +210,34 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditEntries", (string)null);
                 });
 
+            modelBuilder.Entity("CaseTrack.Infrastructure.Persistence.Auditing.PersonalDataAccessEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("AccessedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AccessedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("AccessedBy", "AccessedAt");
+
+                    b.ToTable("PersonalDataAccessLogs", (string)null);
+                });
+
             modelBuilder.Entity("CaseTrack.Infrastructure.Persistence.CaseNumberCounter", b =>
                 {
                     b.Property<DateOnly>("Date")

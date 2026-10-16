@@ -48,6 +48,20 @@ public sealed class CasesController : ControllerBase
         return Ok(result);
     }
 
+    // 陳情人的完整個資：GET /api/cases/{id} 一律遮罩，承辦人需要聯絡民眾時才呼叫這裡，每次都會留下查詢紀錄。
+    // 只有承辦人、主管（分派人員看得到案件，但不需要知道民眾是誰）。
+    // no-store：個資不能被瀏覽器或中間的 proxy 快取
+    [Authorize(Policy = Policies.CaseHandler)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [HttpGet("{id:guid}/petitioner")]
+    public async Task<ActionResult<PetitionerDetails>> GetPetitioner(
+        [FromRoute] Guid id,
+        [FromServices] GetPetitionerHandler handler,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await handler.HandleAsync(id, cancellationToken));
+    }
+
     [Authorize(Policy = Policies.CaseHandler)]
     [HttpPost("{id:guid}/review")]
     public async Task<ActionResult> ReviewCase(
