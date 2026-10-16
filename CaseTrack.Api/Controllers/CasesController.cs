@@ -1,5 +1,5 @@
+using CaseTrack.Api.Authentication;
 using CaseTrack.Api.Contracts;
-using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Cases;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -7,7 +7,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace CaseTrack.Api.Controllers;
 
 // 預設拒絕：整個 Controller 都要登入，例外的端點個別加 [AllowAnonymous]。
-// 之後新增端點忘了設定，結果是「多一道登入」，而不是「少一道登入」
+// 之後新增端點忘了設定，結果是「多一道登入」，而不是「少一道登入」。
+// 每個端點再用 Policy 限制角色（第 1 層，403）；能碰哪些案件由 Handler 的 CaseAccessScope 決定（第 2 層，404）
 [Authorize]
 [ApiController]
 [Route("api/cases")]
@@ -35,6 +36,7 @@ public sealed class CasesController : ControllerBase
         return CreatedAtAction(nameof(GetCase), new { id = result.Id }, result);
     }
 
+    [Authorize(Policy = Policies.CaseReader)]
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<CaseDetails>> GetCase(
         [FromRoute] Guid id,
@@ -46,6 +48,7 @@ public sealed class CasesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = Policies.CaseHandler)]
     [HttpPost("{id:guid}/review")]
     public async Task<ActionResult> ReviewCase(
         [FromRoute] Guid id,
@@ -56,6 +59,7 @@ public sealed class CasesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = Policies.CaseHandler)]
     [HttpPost("{id:guid}/close")]
     public async Task<ActionResult> CloseCase(
         [FromRoute] Guid id,
@@ -66,6 +70,8 @@ public sealed class CasesController : ControllerBase
         return NoContent();
     }
 
+    // 承辦單位審核後退件。分派人員一收到就不受理的情況，用 /dismissal
+    [Authorize(Policy = Policies.CaseHandler)]
     [HttpPost("{id:guid}/reject")]
     public async Task<ActionResult> RejectCase(
         [FromRoute] Guid id,
@@ -77,6 +83,7 @@ public sealed class CasesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Policy = Policies.CaseHandler)]
     [HttpPost("{id:guid}/supplement-requests")]
     public async Task<ActionResult> RequestSupplement(
         [FromRoute] Guid id,
@@ -101,7 +108,7 @@ public sealed class CasesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = Roles.Dispatcher)]
+    [Authorize(Policy = Policies.CaseDispatcher)]
     [HttpPost("{id:guid}/assignment")]
     public async Task<ActionResult> AssignDepartment(
         [FromRoute] Guid id,
@@ -112,6 +119,19 @@ public sealed class CasesController : ControllerBase
         // [Required] 讓 [ApiController] 在進入這個方法之前就擋掉 null（回 400），所以這裡一定有值。
         // 編譯器看不到這件事，用 ! 告訴它；萬一驗證被關掉，.Value 會直接拋例外，而不是默默變成 Guid.Empty
         await handler.HandleAsync(id, request.DepartmentId!.Value, cancellationToken);
+        return NoContent();
+    }
+
+    // 不予受理：分派人員判斷不屬本府權責、內容無意義等，只能在分派之前（已送出）
+    [Authorize(Policy = Policies.CaseDispatcher)]
+    [HttpPost("{id:guid}/dismissal")]
+    public async Task<ActionResult> DismissCase(
+        [FromRoute] Guid id,
+        [FromBody] DismissCaseRequest request,
+        [FromServices] DismissCaseHandler handler,
+        CancellationToken cancellationToken)
+    {
+        await handler.HandleAsync(id, request.Reason, cancellationToken);
         return NoContent();
     }
 }

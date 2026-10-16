@@ -4,6 +4,7 @@ using CaseTrack.Api.ExceptionHandling;
 using CaseTrack.Api.Services;
 using CaseTrack.Application;
 using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Authorization;
 using CaseTrack.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -54,6 +55,12 @@ builder.Services
             ClockSkew = TimeSpan.FromMinutes(1),
         };
     });
+
+// 授權的第 1 層：角色。管理者不在任何一個 policy 裡（最小權限），呼叫案件的端點都是 403
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(Policies.CaseReader, policy => policy.RequireRole(Roles.CaseOfficer, Roles.Supervisor, Roles.Dispatcher))
+    .AddPolicy(Policies.CaseHandler, policy => policy.RequireRole(Roles.CaseOfficer, Roles.Supervisor))
+    .AddPolicy(Policies.CaseDispatcher, policy => policy.RequireRole(Roles.Dispatcher));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();

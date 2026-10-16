@@ -22,4 +22,8 @@ public sealed class CaseTrackApiFactory : WebApplicationFactory<Program>
 
     // 分派人員
     public HttpClient CreateDispatcherClient() => CreateClient().WithBearerToken(TestTokens.CreateDispatcherToken());
+
+    // 指定角色和單位的使用者，例如別的單位的承辦人、管理者
+    public HttpClient CreateClientFor(string userId, string[] roles, Guid? departmentId = null) =>
+        CreateClient().WithBearerToken(TestTokens.Create(userId, roles, departmentId?.ToString()));
 }

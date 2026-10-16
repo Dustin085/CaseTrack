@@ -410,6 +410,60 @@ public class CaseStatusTransitionTests
         Assert.Throws<InvalidCaseStatusTransitionException>(@case.StartReview);
     }
 
+    // ── 不予受理 ─────────────────────────────────────────
+
+    // 分派人員一收到就不受理：案件還沒分派也可以
+    [Fact]
+    public void Dismiss_WhenSubmittedAndNotAssigned_StatusIsRejectedWithReason()
+    {
+        var @case = CreateTestCase();
+
+        @case.Dismiss("非本府權責");
+
+        Assert.Equal(CaseStatus.Rejected, @case.Status);
+        Assert.Equal("非本府權責", @case.RejectionReason);
+    }
+
+    // 已經分派、但還沒受理：分派人員仍然可以改判不受理
+    [Fact]
+    public void Dismiss_WhenSubmittedAndAssigned_StatusIsRejected()
+    {
+        var @case = CreateTestCase();
+        @case.AssignTo(Department.Id);
+
+        @case.Dismiss("非本府權責");
+
+        Assert.Equal(CaseStatus.Rejected, @case.Status);
+    }
+
+    // 受理之後就由承辦單位負責，要退件是承辦人的「退件」，不是分派人員的「不予受理」
+    [Theory]
+    [InlineData(CaseStatus.UnderReview)]
+    [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.Closed)]
+    [InlineData(CaseStatus.Rejected)]
+    public void Dismiss_WhenNotSubmitted_ThrowsAndKeepsStatus(CaseStatus status)
+    {
+        var @case = CreateCaseInStatus(status);
+
+        var exception = Assert.Throws<InvalidCaseStatusTransitionException>(() => @case.Dismiss("非本府權責"));
+        Assert.Equal(status, exception.CurrentStatus);
+        Assert.Equal(status, @case.Status);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Dismiss_WithBlankReason_ThrowsAndKeepsStatus(string? reason)
+    {
+        var @case = CreateTestCase();
+
+        Assert.ThrowsAny<ArgumentException>(() => @case.Dismiss(reason!));
+        Assert.Equal(CaseStatus.Submitted, @case.Status);
+        Assert.Null(@case.RejectionReason);
+    }
+
     // ── Helpers ──────────────────────────────────────────
 
     private static Case CreateTestCase()

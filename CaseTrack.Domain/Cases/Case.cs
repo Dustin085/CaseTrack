@@ -95,6 +95,18 @@ public class Case
         return now - pendingRequest.RequestedAt >= SupplementDeadline;
     }
 
+    // 不予受理：分派人員一收到案件就判斷不屬本府權責、內容無意義等。
+    // 跟承辦人的「退件」是不同的業務動作：只能在分派之前（已送出）做，不需要先分派。
+    // 結果一樣是已退件；誰做的由稽核紀錄的 ChangedBy 區分
+    public void Dismiss(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        EnsureCanTransition(CaseStatus.Rejected, CaseStatus.Submitted);
+
+        RejectionReason = reason;
+        Status = CaseStatus.Rejected;
+    }
+
     public void RejectOverdueSupplement(DateTimeOffset now)
     {
         if (!IsSupplementOverdue(now))
