@@ -385,7 +385,7 @@ API 本身不管帳號密碼，只負責驗證 token（OAuth 的 Resource Server
 - **資料列過濾放在哪裡**：比較過每個 Handler 自己檢查、Repository 強制傳入範圍、EF Global Query Filter。選 Repository 強制傳入，因為忘記傳就編譯不過、看 Handler 就知道套用了什麼權限、之後用 Dapper 查詢也能沿用；Global Query Filter 是隱形的，而且 Dapper 和直接執行的 SQL 不會套用。
 - **稽核記錄使用者 Id（`sub`）**：姓名會重複、會改，不能用來追查責任。有登入卻沒有 `sub` 時直接拋例外，不默默記成 anonymous；反向驗證時這個設計讓 `MapInboundClaims` 的錯誤立刻被抓到。
 
-**證據**：`CasesController`、`HttpCurrentUser`、`HttpCurrentUserTests`；資料列層級過濾正在實作（`CaseAccessScope`）。
+**證據**：`CasesController`、`HttpCurrentUser`、`HttpCurrentUserTests`；資料列層級過濾的實作見第 24、25 題。
 
 ---
 
@@ -404,3 +404,68 @@ API 本身不管帳號密碼，只負責驗證 token（OAuth 的 Resource Server
 - **反向驗證要精確**：第一次拿掉 EF 的外鍵設定，模型和 migration 對不上，所有測試一起失敗，證明不了什麼；改成只拿掉 migration 裡建立外鍵的那一段，只有外鍵的測試失敗。
 
 **證據**：`CaseConfiguration`、`DepartmentConfiguration`；`CasePersistenceTests.SaveChanges_AssignedToNonexistentDepartment_ThrowsForeignKeyViolation`（SQL 錯誤碼 547）、`AssignmentApiTests`。
+
+---
+
+## 2026-10-16：資料列層級授權、不予受理、個資查詢紀錄
+
+### 24. 「承辦人只能看自己單位的案件」，你怎麼實作？
+
+**30 秒版本**
+用一個 `CaseAccessScope` 型別描述「這個人能看哪些案件」：全部、某個單位、或什麼都沒有。Handler 依照目前使用者的角色算出範圍，Repository 把範圍轉成 SQL 的 `WHERE`。Repository 刻意沒有「不帶範圍」的查詢方法，所以忘記傳範圍就編譯不過。不在範圍內的案件查不到，對外回 404，跟不存在一樣。
+
+**展開**
+- **為什麼不直接傳 `Guid? departmentId`**：`null` 同時會代表「全部」（分派人員）和「沒有」（管理者），Repository 分辨不出來，只要判斷錯一次，管理者就看得到所有個資。獨立的型別讓不合法的狀態無法表示。
+- **規則放在 Application，翻譯放在 Infrastructure**：「誰能看哪些案件」是業務規則；Repository 只負責把範圍轉成 SQL，不需要知道角色。之後的列表、搜尋、報表都用同一個範圍。
+- **處處預設拒絕**：`For()` 最後一行是 `None`（新增角色忘了處理 → 什麼都看不到）；承辦人沒有單位 → `None`；enum 明確寫 `None = 0`（沒設定的值是 0）；Repository 的 `switch` 把每一種範圍寫出來，不認識的種類拋例外，不能寫成「Department 才過濾、其他不過濾」。
+- **明確繞過的地方要搜得到**：逾期排程和民眾補件（已知漏洞）明確寫 `CaseAccessScope.All` 並加註解，搜尋它就找得到所有繞過單位限制的地方。
+- **跟 EF Global Query Filter 比較**：Global Query Filter 不會忘記，但它是隱形的，而且 Dapper、直接執行的 SQL 不會套用。
+- **和 Spring 的差別**：Spring 常見的寫法是每個 service 方法裡寫 `if (!dept.equals(...)) throw`，忘了寫沒有任何東西提醒；這裡是忘了傳就編譯不過。
+
+**證據**：`CaseAccessScope`、`CaseRepository.GetByIdAsync`；`CaseAccessScopeTests`、`CaseRepositoryTests`（未分派的案件用單位範圍查不到，驗證 SQL 的 `NULL = @id`）、`AuthorizationApiTests`；反向驗證：拿掉 Repository 的單位條件，Repository 和 API 的測試都失敗。
+
+---
+
+### 25. Policy 用角色，資料過濾用範圍，為什麼要兩層？
+
+**30 秒版本**
+兩層回答不同的問題。第 1 層 Policy 問「這種人能不能做這個動作」，只看 token 就能決定，失敗回 403；第 2 層範圍問「能碰哪幾筆資料」，必須跟每一筆資料的單位比對，失敗回 404。只有第 1 層的話，工務局的承辦人能處理交通局的案件；只有第 2 層的話，分派人員看得到所有案件，就也能受理所有案件。
+
+**展開**
+- 類比：Policy 是門禁卡（能不能進這層樓），範圍是能打開哪幾個櫃子。
+- Policy 的名稱表達意圖（`CaseReader`、`CaseHandler`、`CaseDispatcher`），角色清單只寫在 `Program.cs`；類別上保留 `[Authorize]`，新端點忘了加 Policy 至少還要登入。
+- 我用反向驗證證明兩層都需要：把受理端點的 Policy 拿掉，分派人員的範圍是「全部」，第 2 層擋不住他，只有「分派人員受理 → 403」的測試失敗。
+- **規則同時跟角色和資料狀態有關時**（分派人員只能退「已送出」的案件），Policy 做不到。我沒有把 `if` 塞回 Handler，而是把它拆成兩個業務動作：承辦人的「退件」和分派人員的「不予受理」，狀態規則放進 Domain。框架官方的做法是以資源為基礎的授權（`IAuthorizationService.AuthorizeAsync(user, resource, requirement)`），規則多的時候再用。
+- 註冊順序的坑：`builder.Services.Add...` 一定要在 `builder.Build()` 之前，我放錯過一次，API 一啟動就失敗。
+
+**證據**：`Policies`、`Program.cs` 的 `AddAuthorizationBuilder`、`Case.Dismiss`；`AuthorizationApiTests`。
+
+---
+
+### 26. 為什麼系統管理者不能看案件內容？
+
+**30 秒版本**
+最小權限：管理者管的是系統（帳號、單位、設定），工作上不需要知道民眾的電話。管理者帳號是攻擊者的第一目標，權限分開之後，管理者帳號外洩也不等於所有個資外洩。個資法也要求個資只能在特定目的的必要範圍內使用。
+
+**展開**
+- 資安稽核常檢查「系統管理者能不能看到業務資料」。
+- 應用程式的權限擋不住 DBA 直接查資料庫，要搭配資料庫稽核、欄位加密、職責分離。
+- 管理者需要查問題時，用「緊急存取」：臨時開權限、必須填理由、特別記錄、事後審查，而不是平常就給權限。
+- 測試資料要讓錯誤現形：管理者的測試帳號刻意給他一個單位。如果程式把管理者誤當成承辦人處理，沒有單位的管理者剛好也是「看不到」，測試會抓不到。
+
+**證據**：`CaseAccessScopeTests.For_AdministratorWithDepartment_ReturnsNone`、`AuthorizationApiTests.GetCase_ByAdministrator_ReturnsForbidden`。
+
+---
+
+### 27. 承辦人怎麼看到完整的個資？怎麼留下查詢紀錄？
+
+**30 秒版本**
+預設一律遮罩，另外一個端點 `GET /api/cases/{id}/petitioner` 回傳完整資料，只有本單位的承辦人和主管能呼叫。每次呼叫都先寫入查詢紀錄（誰、何時、哪個案件）並存檔成功，才回傳資料；存檔失敗就拿不到個資。回應加上 `Cache-Control: no-store`，避免被瀏覽器或 proxy 快取。
+
+**展開**
+- **為什麼不在一般查詢直接給完整資料**：大部分時候只需要看陳情內容；預設遮罩，螢幕被看到、被截圖也不會外洩。而且每打開一次案件就記一筆的話，紀錄多到沒人看得完；明確要求才顯示，紀錄才有意義。
+- **查詢紀錄和稽核紀錄分開存**：稽核記錄的是修改，由攔截器自動產生；查詢紀錄由 Handler 明確寫入。常見的查詢也不同：「某個人最近看了哪些民眾的資料」（調查濫用），保存期限也可能不同。紀錄本身不再稽核。
+- **用假物件測試「存檔失敗」**：整合測試很難讓資料庫在那一刻失敗，用假的 `IUnitOfWork` 證明存檔失敗時 Handler 拋出例外、不回傳資料。
+- **一個因為錯誤原因通過的測試**：我一開始用稽核紀錄的 `EntityId` 找查詢紀錄，但查詢紀錄的主鍵是 IDENTITY，攔截器在存檔前執行，拿到的是 EF 的暫時值（負數），永遠對不上，測試永遠通過。反向驗證時才發現，改用 `Changes` 裡的案件 Id 找。
+
+**證據**：`GetPetitionerHandler`、`PersonalDataAccessEntry`；`PersonalDataApiTests`、`GetPetitionerHandlerTests`。
