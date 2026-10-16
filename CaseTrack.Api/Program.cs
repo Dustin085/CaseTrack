@@ -8,6 +8,7 @@ using CaseTrack.Application.Authorization;
 using CaseTrack.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,7 +17,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Swagger UI 的 Authorize 按鈕：貼上 /dev/token 拿到的 token，之後需要登入的端點會自動帶上 Authorization 標頭
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition(BearerSecurityOperationFilter.SchemeId, new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "開發環境先呼叫 POST /dev/token 取得 token，只貼上 token 本身（不用加 Bearer）",
+    });
+    options.OperationFilter<BearerSecurityOperationFilter>();
+});
 
 builder.Services.AddInfrastructure(builder.Configuration.GetConnectionString("CaseTrack")
     ?? throw new InvalidOperationException("缺少連線字串 'CaseTrack'"));
