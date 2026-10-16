@@ -1,4 +1,5 @@
 using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Exceptions;
 using CaseTrack.Application.Privacy;
 using CaseTrack.Domain.Cases;
@@ -31,16 +32,18 @@ public sealed record SupplementRequestDetails(
 public sealed class GetCaseHandler
 {
     private readonly ICaseRepository _caseRepository;
+    private readonly ICurrentUser _currentUser;
 
-    public GetCaseHandler(ICaseRepository caseRepository)
+    public GetCaseHandler(ICaseRepository caseRepository, ICurrentUser currentUser)
     {
         _caseRepository = caseRepository;
+        _currentUser = currentUser;
     }
 
     // 找不到時拋 NotFoundException
     public async Task<CaseDetails> HandleAsync(Guid caseId, CancellationToken cancellationToken)
     {
-        var @case = await _caseRepository.GetByIdAsync(caseId, cancellationToken)
+        var @case = await _caseRepository.GetByIdAsync(caseId, CaseAccessScope.For(_currentUser), cancellationToken)
             ?? throw new NotFoundException(nameof(Case), caseId);
 
         // 從資料庫讀出的補件紀錄沒有順序保證，回傳前依補件次序排序

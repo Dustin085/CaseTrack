@@ -1,4 +1,5 @@
 ﻿using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Exceptions;
 using CaseTrack.Domain.Cases;
 
@@ -21,7 +22,8 @@ public sealed class RejectOverdueCaseHandler
 
     public async Task<bool> HandleAsync(Guid caseId, CancellationToken cancellationToken)
     {
-        var @case = await _caseRepository.GetByIdAsync(caseId, cancellationToken);
+        // 系統排程：逾期退件涵蓋所有單位的案件，沒有「目前的使用者」可以決定範圍
+        var @case = await _caseRepository.GetByIdAsync(caseId, CaseAccessScope.All, cancellationToken);
         var now = _timeProvider.GetUtcNow();
         if (@case is null)
         {

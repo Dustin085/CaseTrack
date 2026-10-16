@@ -65,6 +65,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var submitted = await _citizenClient.SubmitCaseAsync("水管破裂", "民生路水管破裂");
+        await _dispatcherClient.AssignAsync(submitted.Id, TestTokens.OfficerDepartmentId);
 
         await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
             $"api/cases/{submitted.Id}/reject", new { reason = "非本單位業務" }, cancellationToken));
@@ -108,6 +109,10 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
             },
             cancellationToken);
         Assert.Equal(HttpStatusCode.Created, submitResponse.StatusCode);
+        var submitted = await submitResponse.Content.ReadFromJsonAsync<SubmitCaseResult>(cancellationToken);
+        Assert.NotNull(submitted);
+        // 承辦人只看得到本單位的案件，要先分派
+        await _dispatcherClient.AssignAsync(submitted.Id, TestTokens.OfficerDepartmentId);
 
         var response = await _officerClient.GetAsync(submitResponse.Headers.Location, cancellationToken);
 

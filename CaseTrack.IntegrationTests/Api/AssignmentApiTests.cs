@@ -31,7 +31,8 @@ public class AssignmentApiTests : IClassFixture<CaseTrackApiFactory>
         var response = await _dispatcherClient.PostAssignmentAsync(submitted.Id, DepartmentSeed.Transportation);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        var details = await _officerClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", cancellationToken);
+        // 用分派人員查詢：分派到交通局之後，工務局的承辦人已經看不到這個案件了
+        var details = await _dispatcherClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", cancellationToken);
         Assert.NotNull(details);
         Assert.Equal(DepartmentSeed.Transportation, details.DepartmentId);
         Assert.Equal("Submitted", details.Status);
@@ -109,17 +110,16 @@ public class AssignmentApiTests : IClassFixture<CaseTrackApiFactory>
         Assert.Equal("只有已送出的案件可以分派，目前狀態：UnderReview", problem.RootElement.GetProperty("detail").GetString());
     }
 
-    // 沒分派就受理 → 409，告訴使用者要先分派
+    // 未分派的案件不屬於任何單位，承辦人看不到，所以是 404，走不到 Domain 的「尚未分派」（409）。
+    // Domain 的規則仍然保留：它是最後一道防線，不依賴 API 的權限設定是否正確
     [Fact]
-    public async Task ReviewCase_NotAssigned_ReturnsConflict()
+    public async Task ReviewCase_NotAssigned_ReturnsNotFoundForOfficer()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         var submitted = await _citizenClient.SubmitCaseAsync();
 
         var response = await _officerClient.PostAsync($"api/cases/{submitted.Id}/review", null, cancellationToken);
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        Assert.Equal("案件尚未被分派", problem.RootElement.GetProperty("detail").GetString());
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 }

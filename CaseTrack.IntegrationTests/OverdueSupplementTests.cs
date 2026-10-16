@@ -1,6 +1,7 @@
 using CaseTrack.Api.BackgroundJobs;
 using CaseTrack.Application;
 using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Cases;
 using CaseTrack.Domain.Cases;
 using CaseTrack.Infrastructure;
@@ -101,7 +102,7 @@ public class OverdueSupplementTests
         // Assert
         await using var readScope = provider.CreateAsyncScope();
         var reload = await readScope.ServiceProvider.GetRequiredService<ICaseRepository>()
-            .GetByIdAsync(@case.Id, cancellationToken);
+            .GetByIdAsync(@case.Id, CaseAccessScope.All, cancellationToken);
         Assert.NotNull(reload);
         Assert.Equal(CaseStatus.Rejected, reload.Status);
         Assert.Equal("逾期未補件", reload.RejectionReason);
@@ -136,7 +137,7 @@ public class OverdueSupplementTests
         // Assert：沒有被退件，補件紀錄也還在
         await using var readScope = provider.CreateAsyncScope();
         var reloaded = await readScope.ServiceProvider.GetRequiredService<ICaseRepository>()
-            .GetByIdAsync(@case.Id, cancellationToken);
+            .GetByIdAsync(@case.Id, CaseAccessScope.All, cancellationToken);
         Assert.NotNull(reloaded);
         Assert.Equal(CaseStatus.UnderReview, reloaded.Status);
         Assert.Null(reloaded.RejectionReason);
@@ -180,9 +181,9 @@ public class OverdueSupplementTests
         // Assert
         await using var readScope = provider.CreateAsyncScope();
         var readRepo = readScope.ServiceProvider.GetRequiredService<ICaseRepository>();
-        var overdueReloaded = await readRepo.GetByIdAsync(overdueCase.Id, cancellationToken);
+        var overdueReloaded = await readRepo.GetByIdAsync(overdueCase.Id, CaseAccessScope.All, cancellationToken);
         Assert.NotNull(overdueReloaded);
-        var nonoverdueReloaded = await readRepo.GetByIdAsync(notOverdueCase.Id, cancellationToken);
+        var nonoverdueReloaded = await readRepo.GetByIdAsync(notOverdueCase.Id, CaseAccessScope.All, cancellationToken);
         Assert.NotNull(nonoverdueReloaded);
 
         Assert.Equal(CaseStatus.Rejected, overdueReloaded.Status);

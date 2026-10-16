@@ -1,6 +1,8 @@
 using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Authorization;
 using CaseTrack.Domain.Cases;
 using CaseTrack.Infrastructure;
+using CaseTrack.Infrastructure.Persistence.Configurations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaseTrack.IntegrationTests;
@@ -30,7 +32,7 @@ public class CaseRepositoryTests
         // Act：在另一個 scope（另一個請求）裡讀出
         await using var readScope = CreateScope();
         var reloaded = await readScope.ServiceProvider.GetRequiredService<ICaseRepository>()
-            .GetByIdAsync(@case.Id, cancellationToken);
+            .GetByIdAsync(@case.Id, CaseAccessScope.All, cancellationToken);
 
         // Assert
         Assert.NotNull(reloaded);
@@ -40,6 +42,82 @@ public class CaseRepositoryTests
         Assert.Equal("缺照片", request.Reason);
         Assert.Equal(TimeSpan.FromHours(8), request.RequestedAt.Offset);
         Assert.Null(request.SubmittedAt);
+    }
+
+    // ── 存取範圍：範圍要真的變成 SQL 的查詢條件 ─────────────
+
+    [Fact]
+    public async Task GetByIdAsync_AllScope_FindsCase()
+    {
+        var caseId = await SaveCaseAsync(DepartmentSeed.PublicWorks);
+
+        Assert.NotNull(await FindAsync(caseId, CaseAccessScope.All));
+    }
+
+    // 正面對照：同一個單位找得到。沒有這個測試的話，下面的 null 可能只是因為「單位範圍什麼都查不到」
+    [Fact]
+    public async Task GetByIdAsync_SameDepartmentScope_FindsCase()
+    {
+        var caseId = await SaveCaseAsync(DepartmentSeed.PublicWorks);
+
+        Assert.NotNull(await FindAsync(caseId, CaseAccessScope.ForDepartment(DepartmentSeed.PublicWorks)));
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_OtherDepartmentScope_ReturnsNull()
+    {
+        var caseId = await SaveCaseAsync(DepartmentSeed.PublicWorks);
+
+        Assert.Null(await FindAsync(caseId, CaseAccessScope.ForDepartment(DepartmentSeed.Transportation)));
+    }
+
+    // 未分派的案件 DepartmentId 是 NULL；SQL 的 NULL = @id 是 UNKNOWN，要確認 EF 翻譯出來的條件不會把它當成符合
+    [Fact]
+    public async Task GetByIdAsync_UnassignedCaseWithDepartmentScope_ReturnsNull()
+    {
+        var caseId = await SaveCaseAsync(departmentId: null);
+
+        Assert.Null(await FindAsync(caseId, CaseAccessScope.ForDepartment(DepartmentSeed.PublicWorks)));
+    }
+
+    // 分派人員要看得到未分派的案件，才有辦法分派
+    [Fact]
+    public async Task GetByIdAsync_UnassignedCaseWithAllScope_FindsCase()
+    {
+        var caseId = await SaveCaseAsync(departmentId: null);
+
+        Assert.NotNull(await FindAsync(caseId, CaseAccessScope.All));
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_NoneScope_ReturnsNull()
+    {
+        var caseId = await SaveCaseAsync(DepartmentSeed.PublicWorks);
+
+        Assert.Null(await FindAsync(caseId, CaseAccessScope.None));
+    }
+
+    private static async Task<Guid> SaveCaseAsync(Guid? departmentId)
+    {
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        if (departmentId is { } id)
+        {
+            @case.AssignTo(id);
+        }
+
+        await using var writeScope = CreateScope();
+        writeScope.ServiceProvider.GetRequiredService<ICaseRepository>().Add(@case);
+        await writeScope.ServiceProvider.GetRequiredService<IUnitOfWork>()
+            .SaveChangesAsync(TestContext.Current.CancellationToken);
+        return @case.Id;
+    }
+
+    // 用另一個 scope 讀：確認查詢條件是在資料庫執行的，不是從記憶體裡拿到的
+    private static async Task<Case?> FindAsync(Guid caseId, CaseAccessScope scope)
+    {
+        await using var readScope = CreateScope();
+        return await readScope.ServiceProvider.GetRequiredService<ICaseRepository>()
+            .GetByIdAsync(caseId, scope, TestContext.Current.CancellationToken);
     }
 
     // 每呼叫一次就模擬一個新的 HTTP 請求：裡面的 DbContext、Repository 都是全新的實例
