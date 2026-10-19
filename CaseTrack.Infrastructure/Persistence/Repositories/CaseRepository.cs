@@ -28,21 +28,12 @@ internal sealed class CaseRepository : ICaseRepository
         {
             return Task.FromResult<Case?>(null);
         }
-        var query = _dbContext.Cases
+
+        return _dbContext.Cases
             .Include(c => c.SupplementRequests)
-            .Where(c => c.Id == id);
-
-        // 每一種範圍都明確寫出來，不認識的種類拋例外。
-        // 不能寫成「Department 才過濾、其他不過濾」：那樣 None 和之後新增的種類都會變成「全部」
-        query = scope.Kind switch
-        {
-            CaseAccessScopeKind.All => query,
-            CaseAccessScopeKind.Department => query.Where(c => c.DepartmentId == scope.DepartmentId),
-            CaseAccessScopeKind.None => throw new UnreachableException("None 已經在上面直接回傳"),
-            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope.Kind, "不支援的範圍")
-        };
-
-        return query.SingleOrDefaultAsync(cancellationToken);
+            .ApplyScope(scope)
+            .Where(c => c.Id == id)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Guid>> GetOverdueSupplementCaseIdsAsync(
