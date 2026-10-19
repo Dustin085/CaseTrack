@@ -1,14 +1,26 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <!-- 間接引用的套件也可以在這裡指定版本（transitive pinning），用來修補依賴鏈深處的弱點 -->
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
+  <!-- 10.0.x 的套件整組一起升級：10.0.13 是 2026-10-13 的安全性修補版本 -->
   <ItemGroup Label="Api">
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.13" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
+  </ItemGroup>
+  <ItemGroup Label="Security">
+    <!--
+      EF Core SqlServer → Microsoft.Data.SqlClient 6.1.x → System.Security.Cryptography.Pkcs 9.0.11，
+      有兩個阻斷服務的弱點（CVE-2026-84008 高、CVE-2026-70162 中）。
+      EF Core 10.0.13 引用的 SqlClient 6.1.7 仍然依賴 9.0.11，升級 EF 修不到，所以直接指定修補後的版本。
+      之後 SqlClient 的依賴更新到 10.0.13 以上，就可以拿掉這一行
+    -->
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
   <ItemGroup Label="Tests">
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
