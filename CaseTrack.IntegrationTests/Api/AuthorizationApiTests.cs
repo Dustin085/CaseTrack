@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Cases;
+using CaseTrack.Application.Common;
 using CaseTrack.Domain.Cases;
 using CaseTrack.Infrastructure.Persistence.Configurations;
 using static CaseTrack.IntegrationTests.Api.ApiTestHelpers;
@@ -136,6 +137,42 @@ public class AuthorizationApiTests : IClassFixture<CaseTrackApiFactory>
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
+    // ── 列表 ─────────────────────────────────────────────
+
+    // 承辦人的列表只有本單位的案件，總筆數也只算本單位的；分派人員看得到全部
+    [Fact]
+    public async Task ListCases_OfficerSeesOnlyOwnDepartment_DispatcherSeesAll()
+    {
+        var marker = $"列表授權-{Guid.NewGuid():N}"[..20];
+        var publicWorksCase = await _citizenClient.SubmitCaseAsync(marker);
+        await _dispatcherClient.AssignAsync(publicWorksCase.Id, DepartmentSeed.PublicWorks);
+        var transportationCase = await _citizenClient.SubmitCaseAsync(marker);
+        await _dispatcherClient.AssignAsync(transportationCase.Id, DepartmentSeed.Transportation);
+
+        var officerList = await ListCasesAsync(_officerClient, marker);
+        var dispatcherList = await ListCasesAsync(_dispatcherClient, marker);
+
+        Assert.Equal(publicWorksCase.Id, Assert.Single(officerList.Items).Id);
+        Assert.Equal(1, officerList.TotalCount);
+        Assert.Equal(2, dispatcherList.TotalCount);
+    }
+
+    [Fact]
+    public async Task ListCases_ByAdministrator_ReturnsForbidden()
+    {
+        var response = await _administratorClient.GetAsync("api/cases", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ListCases_PageSizeOverLimit_ReturnsValidationProblem()
+    {
+        var response = await _dispatcherClient.GetAsync("api/cases?pageSize=101", TestContext.Current.CancellationToken);
+
+        await AssertValidationProblemAsync(response, "PageSize", "每頁筆數必須介於 1 到 100 之間");
+    }
+
     // ── 不予受理 ─────────────────────────────────────────
 
     [Fact]
@@ -193,6 +230,14 @@ public class AuthorizationApiTests : IClassFixture<CaseTrackApiFactory>
         var submitted = await _citizenClient.SubmitCaseAsync();
         await _dispatcherClient.AssignAsync(submitted.Id, DepartmentSeed.PublicWorks);
         return submitted.Id;
+    }
+
+    private static async Task<PagedResult<CaseSummary>> ListCasesAsync(HttpClient client, string keyword)
+    {
+        var result = await client.GetFromJsonAsync<PagedResult<CaseSummary>>(
+            $"api/cases?keyword={Uri.EscapeDataString(keyword)}", JsonOptions, TestContext.Current.CancellationToken);
+        Assert.NotNull(result);
+        return result;
     }
 
     private static Task<HttpResponseMessage> GetCaseAsync(HttpClient client, Guid caseId) =>
