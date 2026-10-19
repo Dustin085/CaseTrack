@@ -27,7 +27,8 @@ public sealed class HttpCurrentUser : ICurrentUser
                 return System;
             }
 
-            // 有請求但沒登入：民眾送出陳情、補件
+            // 有請求但沒登入：只有不需要登入的端點（例如開發環境的 /dev/token）。
+            // 會寫入資料的端點都要登入（民眾也是），稽核紀錄出現 anonymous 就代表有端點漏了 [Authorize]
             if (AuthenticatedUser is null)
             {
                 return Anonymous;
