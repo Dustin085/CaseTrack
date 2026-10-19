@@ -8,7 +8,8 @@ public static class Roles
     public const string Supervisor = "Supervisor";          // 單位主管：處理本單位的案件
     public const string Dispatcher = "Dispatcher";          // 分派人員：把案件分派到單位
     public const string Administrator = "Administrator";    // 管理者：維護系統設定，不能看案件內容
+    public const string Citizen = "Citizen";                // 民眾：送出陳情的人
 
     public static readonly IReadOnlySet<string> All =
-        new HashSet<string> { CaseOfficer, Supervisor, Dispatcher, Administrator };
+        new HashSet<string> { CaseOfficer, Supervisor, Dispatcher, Administrator, Citizen };
 }

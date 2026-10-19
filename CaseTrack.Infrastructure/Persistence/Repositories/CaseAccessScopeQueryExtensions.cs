@@ -16,6 +16,7 @@ internal static class CaseAccessScopeQueryExtensions
             CaseAccessScopeKind.All => query,
             CaseAccessScopeKind.Department => query.Where(c => c.DepartmentId == scope.DepartmentId),
             CaseAccessScopeKind.None => query.Where(c => false),
+            CaseAccessScopeKind.Petitioner => query.Where(c => c.SubmittedBy == scope.PetitionerId),
             _ => throw new ArgumentOutOfRangeException(nameof(scope), scope.Kind, "不支援的範圍")
         };
     }

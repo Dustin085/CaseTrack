@@ -63,6 +63,24 @@ public class CaseListTests
         Assert.Empty(result.Items);
     }
 
+    // 民眾只看得到自己送出的案件，總筆數也只算自己的。
+    // 民眾 B 的案件「已分派」：如果誤用了其他範圍（例如單位），會把 B 的案件也算進來
+    [Fact]
+    public async Task ListAsync_PetitionerScope_ReturnsOnlyOwnCases()
+    {
+        var marker = NewMarker();
+        var citizenA = $"u-a-{Guid.NewGuid():N}";
+        var citizenB = $"u-b-{Guid.NewGuid():N}";
+        await SaveCaseAsync(marker, departmentId: null, submittedBy: citizenA);
+        await SaveCaseAsync(marker, DepartmentSeed.PublicWorks, submittedBy: citizenA);
+        await SaveCaseAsync(marker, DepartmentSeed.PublicWorks, submittedBy: citizenB);
+
+        var result = await ListAsync(Query(marker), CaseAccessScope.ForPetitioner(citizenA));
+
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(2, result.Items.Count);
+    }
+
     // ── 篩選 ─────────────────────────────────────────────
 
     // 關鍵字只出現在主旨、沒出現在案件編號，也要找得到（主旨「或」案件編號，不是「而且」）
@@ -180,10 +198,11 @@ public class CaseListTests
         new(null, keyword, page, pageSize);
 
     // 存一筆案件，回傳案件編號
-    private static async Task<string> SaveCaseAsync(string subject, Guid? departmentId, bool startReview = false)
+    private static async Task<string> SaveCaseAsync(
+        string subject, Guid? departmentId, bool startReview = false, string? submittedBy = null)
     {
         var @case = new Case($"T-{Guid.NewGuid():N}"[..20], subject, "列表測試的內容",
-            TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+            TestData.Petitioner, submittedBy ?? TestData.SubmittedBy, TestData.SubmittedAt);
         if (departmentId is { } id)
         {
             @case.AssignTo(id);

@@ -9,25 +9,30 @@ public enum CaseAccessScopeKind
     None = 0,
     Department = 1,
     All = 2,
+    Petitioner = 3,
 }
 
 // 使用者能看、能處理哪些案件（資料列層級授權）。Handler 依照目前的使用者建立，Repository 把它轉成查詢條件。
 // 用獨立的型別而不是 Guid?：null 會同時代表「全部」（分派人員）和「沒有」（管理者），Repository 分辨不出來。
-// private 建構子：只能透過 All、None、ForDepartment 建立，不可能出現「All 卻帶著單位」這種組合
+// private 建構子：只能透過 All、None、ForDepartment、ForPetitioner 建立，不可能出現「All 卻帶著單位」這種組合
 public sealed record CaseAccessScope
 {
     public CaseAccessScopeKind Kind { get; }
     public Guid? DepartmentId { get; }
+    public string? PetitionerId { get; }
 
-    private CaseAccessScope(CaseAccessScopeKind kind, Guid? departmentId)
+    private CaseAccessScope(CaseAccessScopeKind kind,
+        Guid? departmentId = null,
+        string? petitionerId = null)
     {
         Kind = kind;
         DepartmentId = departmentId;
+        PetitionerId = petitionerId;
     }
 
-    public static CaseAccessScope All { get; } = new(CaseAccessScopeKind.All, null);
+    public static CaseAccessScope All { get; } = new(CaseAccessScopeKind.All);
 
-    public static CaseAccessScope None { get; } = new(CaseAccessScopeKind.None, null);
+    public static CaseAccessScope None { get; } = new(CaseAccessScopeKind.None);
 
     public static CaseAccessScope ForDepartment(Guid departmentId)
     {
@@ -36,6 +41,14 @@ public sealed record CaseAccessScope
             throw new ArgumentException("單位 Id 不能是空的", nameof(departmentId));
         }
         return new CaseAccessScope(CaseAccessScopeKind.Department, departmentId);
+    }
+
+    // 民眾只能看自己送出的案件（Case.SubmittedBy 就是送件時 token 的 sub）
+    public static CaseAccessScope ForPetitioner(string userId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+
+        return new CaseAccessScope(CaseAccessScopeKind.Petitioner, petitionerId: userId);
     }
 
     public static CaseAccessScope For(ICurrentUser user)
@@ -53,7 +66,9 @@ public sealed record CaseAccessScope
             return user.DepartmentId is { } departmentId ? ForDepartment(departmentId) : None;
         }
 
-        // 預設拒絕：管理者（最小權限，不能看案件內容）、民眾，以及之後新增卻忘了在這裡處理的角色
+        // 預設拒絕：管理者（最小權限，不能看案件內容）、民眾，以及之後新增卻忘了在這裡處理的角色。
+        // 民眾不是漏掉了：這裡決定的是承辦端（/api/cases）的範圍。民眾端（/api/my/cases）一律用 ForPetitioner，
+        // 由端點決定範圍，不合併角色，所以承辦人自己陳情時，兩邊各看各的，不需要「本單位 + 本人」的聯集
         return None;
     }
 }

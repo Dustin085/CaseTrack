@@ -88,6 +88,18 @@ public class CaseAccessScopeTests
         Assert.Equal(CaseAccessScope.None, CaseAccessScope.For(user));
     }
 
+    // 民眾在承辦端看不到任何案件。故意讓他「有單位」：如果程式把民眾當成承辦人處理，會拿到單位範圍而失敗
+    [Fact]
+    public void For_CitizenWithDepartment_ReturnsNone()
+    {
+        var user = new FixedCurrentUser(
+            "Test User",
+            new HashSet<string> { Roles.Citizen },
+            DepartmentId);
+
+        Assert.Equal(CaseAccessScope.None, CaseAccessScope.For(user));
+    }
+
     // ── 建立範圍 ─────────────────────────────────────────
 
     [Fact]
@@ -102,6 +114,34 @@ public class CaseAccessScopeTests
     {
         Assert.Equal(CaseAccessScope.ForDepartment(DepartmentId), CaseAccessScope.ForDepartment(DepartmentId));
         Assert.NotEqual(CaseAccessScope.ForDepartment(DepartmentId), CaseAccessScope.ForDepartment(Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void ForPetitioner_ValidUserId_ReturnsPetitionerScope()
+    {
+        var scope = CaseAccessScope.ForPetitioner("u-citizen-1");
+
+        Assert.Equal(CaseAccessScopeKind.Petitioner, scope.Kind);
+        Assert.Equal("u-citizen-1", scope.PetitionerId);
+        Assert.Null(scope.DepartmentId);
+    }
+
+    // 空的 userId 會產生「SubmittedBy == ''」的條件，不能讓它建立出來。
+    // ThrowsAny：null 拋的是 ArgumentNullException（ArgumentException 的子類別），Throws 要求型別完全相同
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ForPetitioner_BlankUserId_ThrowsArgumentException(string? userId)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => CaseAccessScope.ForPetitioner(userId!));
+    }
+
+    [Fact]
+    public void ForPetitioner_SameUser_AreEqual()
+    {
+        Assert.Equal(CaseAccessScope.ForPetitioner("u-1"), CaseAccessScope.ForPetitioner("u-1"));
+        Assert.NotEqual(CaseAccessScope.ForPetitioner("u-1"), CaseAccessScope.ForPetitioner("u-2"));
     }
 
     // enum 的預設值是數值 0，而 0 必須代表 None：哪裡忘了設定時，得到的是「什麼都看不到」
