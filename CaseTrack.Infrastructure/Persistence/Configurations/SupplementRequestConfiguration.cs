@@ -13,6 +13,7 @@ public class SupplementRequestConfiguration : IEntityTypeConfiguration<Supplemen
         builder.Property(sr => sr.Id).ValueGeneratedNever();
 
         builder.Property(sr => sr.Reason).HasMaxLength(500);
+        builder.Property(sr => sr.SubmittedContent).HasMaxLength(2000);
 
         builder.HasIndex("CaseId", nameof(SupplementRequest.Sequence)).IsUnique();
     }

@@ -20,7 +20,7 @@ public class AuditInterceptorTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
 
         // Act
         await AddCaseAsync(@case, cancellationToken);
@@ -44,7 +44,8 @@ public class AuditInterceptorTests
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
         var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障",
-            new Petitioner("王小明", "0912345678", null, "臺北市中山區"));
+            new Petitioner("王小明", "0912345678", null, "臺北市中山區"),
+            TestData.SubmittedBy, TestData.SubmittedAt);
 
         // Act
         await AddCaseAsync(@case, cancellationToken);
@@ -72,7 +73,7 @@ public class AuditInterceptorTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
 
         // Act：直接呼叫 DbContext 的同步 SaveChanges（IUnitOfWork 只有非同步版本）
         await using (var writeScope = CreateScope(Now))
@@ -93,7 +94,7 @@ public class AuditInterceptorTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
         @case.AssignTo(TestData.DepartmentId);
 
         // Act
@@ -126,7 +127,7 @@ public class AuditInterceptorTests
     {
         // Arrange：兩個 scope（兩個請求）讀出同一個案件，第一個先存檔成功
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         await AddCaseAsync(@case, cancellationToken);
@@ -144,7 +145,7 @@ public class AuditInterceptorTests
             .SaveChangesAsync(cancellationToken);
 
         // Act：第二個請求拿著舊的 RowVersion 存檔
-        secondLoad.Close();
+        secondLoad.Close("已派員修復");
         await Assert.ThrowsAsync<ConcurrencyConflictException>(
             () => secondScope.ServiceProvider.GetRequiredService<IUnitOfWork>()
                 .SaveChangesAsync(cancellationToken));

@@ -7,6 +7,7 @@ public class CaseStatusTransitionTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 5, 9, 0, 0, TimeSpan.FromHours(8));
     private static readonly Petitioner Petitioner = new("王小明", "0912345678", null, null);
+    private const string SubmittedBy = "u-citizen-1";
     private static readonly Department Department = new("001", "Test");
 
     // ── 建立 ─────────────────────────────────────────────
@@ -28,13 +29,33 @@ public class CaseStatusTransitionTests
     public void Constructor_WithBlankArgument_ThrowsArgumentException(
         string caseNumber, string subject, string content)
     {
-        Assert.ThrowsAny<ArgumentException>(() => new Case(caseNumber, subject, content, Petitioner));
+        Assert.ThrowsAny<ArgumentException>(() => new Case(caseNumber, subject, content, Petitioner, SubmittedBy, Now));
     }
 
     [Fact]
     public void Constructor_WithNullPetitioner_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => new Case("20261005-0001", "Subject", "Content", null!));
+        Assert.Throws<ArgumentNullException>(() => new Case("20261005-0001", "Subject", "Content", null!, SubmittedBy, Now));
+    }
+
+    // 送件人一定要有：民眾要登入才能陳情，案件一定知道是誰送的
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Constructor_WithBlankSubmittedBy_ThrowsArgumentException(string? submittedBy)
+    {
+        Assert.ThrowsAny<ArgumentException>(
+            () => new Case("20261005-0001", "Subject", "Content", Petitioner, submittedBy!, Now));
+    }
+
+    [Fact]
+    public void Constructor_WhenCreated_RecordsSubmitterAndTime()
+    {
+        var @case = CreateTestCase();
+
+        Assert.Equal(SubmittedBy, @case.SubmittedBy);
+        Assert.Equal(Now, @case.SubmittedAt);
     }
 
     // ── 合法轉換 ─────────────────────────────────────────
@@ -55,8 +76,9 @@ public class CaseStatusTransitionTests
     {
         var @case = CreateCaseInStatus(CaseStatus.UnderReview);
 
-        @case.Close();
+        @case.Close("Test Reply");
 
+        Assert.Equal("Test Reply", @case.ClosingReply);
         Assert.Equal(CaseStatus.Closed, @case.Status);
     }
 
@@ -96,11 +118,12 @@ public class CaseStatusTransitionTests
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
 
-        @case.SubmitSupplement(Now.AddDays(1));
+        @case.SubmitSupplement("Test Content", Now.AddDays(1));
 
         Assert.Equal(CaseStatus.UnderReview, @case.Status);
         var request = Assert.Single(@case.SupplementRequests);
         Assert.Equal(Now.AddDays(1), request.SubmittedAt);
+        Assert.Equal("Test Content", request.SubmittedContent);
     }
 
     // 邊界值：同一時間補件是允許的（規則是「不能早於」）
@@ -109,7 +132,7 @@ public class CaseStatusTransitionTests
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
 
-        @case.SubmitSupplement(Now);
+        @case.SubmitSupplement("Test Content", Now);
 
         Assert.Equal(Now, Assert.Single(@case.SupplementRequests).SubmittedAt);
     }
@@ -120,7 +143,7 @@ public class CaseStatusTransitionTests
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
 
         var exception = Assert.Throws<SubmittedAtBeforeRequestedAtException>(
-            () => @case.SubmitSupplement(Now.AddMinutes(-1)));
+            () => @case.SubmitSupplement("Test Content", Now.AddMinutes(-1)));
 
         Assert.Equal(Now.AddMinutes(-1), exception.SubmittedAt);
         Assert.Equal(Now, exception.RequestedAt);
@@ -132,7 +155,7 @@ public class CaseStatusTransitionTests
     public void RequestSupplement_WhenRequestedAgainAfterSubmission_KeepsAllRequests()
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-        @case.SubmitSupplement(Now.AddDays(1));
+        @case.SubmitSupplement("Test Content", Now.AddDays(1));
 
         @case.RequestSupplement("Still missing photos.", Now.AddDays(2));
 
@@ -157,10 +180,10 @@ public class CaseStatusTransitionTests
     public void SubmitSupplement_WhenMultipleRequests_MarksLatestOnly()
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-        @case.SubmitSupplement(Now.AddDays(1));
+        @case.SubmitSupplement("Test Content", Now.AddDays(1));
         @case.RequestSupplement("Still missing photos.", Now.AddDays(2));
 
-        @case.SubmitSupplement(Now.AddDays(3));
+        @case.SubmitSupplement("Test Content", Now.AddDays(3));
 
         Assert.Collection(@case.SupplementRequests,
             first => Assert.Equal(Now.AddDays(1), first.SubmittedAt),
@@ -216,7 +239,7 @@ public class CaseStatusTransitionTests
     [InlineData(CaseStatus.Rejected)]
     public void SubmitSupplement_FromNonAwaitingSupplement_Throws(CaseStatus from)
     {
-        AssertTransitionFails(from, CaseStatus.UnderReview, c => c.SubmitSupplement(Now));
+        AssertTransitionFails(from, CaseStatus.UnderReview, c => c.SubmitSupplement("Test Content", Now));
     }
 
     [Theory]
@@ -226,7 +249,7 @@ public class CaseStatusTransitionTests
     [InlineData(CaseStatus.Rejected)]
     public void Close_FromNonUnderReview_Throws(CaseStatus from)
     {
-        AssertTransitionFails(from, CaseStatus.Closed, c => c.Close());
+        AssertTransitionFails(from, CaseStatus.Closed, c => c.Close("Test Reply"));
     }
 
     [Theory]
@@ -264,6 +287,36 @@ public class CaseStatusTransitionTests
         Assert.Equal(CaseStatus.Submitted, @case.Status);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Close_WithBlankReply_ThrowsAndKeepStatus(string? reply)
+    {
+        var @case = CreateCaseInStatus(CaseStatus.UnderReview);
+
+        Assert.ThrowsAny<ArgumentException>(() => @case.Close(reply!));
+        Assert.Equal(CaseStatus.UnderReview, @case.Status);
+        Assert.Null(@case.ClosingReply);
+    }
+
+    // 補件說明的檢查在 SupplementRequest.MarkSubmitted 裡（規則跟著資料走），
+    // 失敗時案件和那一筆補件紀錄都不能被改到一半
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void SubmitSupplement_WithBlankContent_ThrowsAndKeepsRequestOpen(string? content)
+    {
+        var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
+
+        Assert.ThrowsAny<ArgumentException>(() => @case.SubmitSupplement(content!, Now.AddDays(1)));
+        Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
+        var request = Assert.Single(@case.SupplementRequests);
+        Assert.Null(request.SubmittedAt);
+        Assert.Null(request.SubmittedContent);
+    }
+
     // ── 逾期未補件 ─────────────────────────────────────────
     // 業務規則：要求補件後 14 天未補即逾期（2026-10-12 定案）
     [Fact]
@@ -298,7 +351,7 @@ public class CaseStatusTransitionTests
     public void IsSupplementOverdue_WhenSecondSupplementRequestBeforeDeadline_ReturnsFalse()
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-        @case.SubmitSupplement(Now + TimeSpan.FromDays(1));
+        @case.SubmitSupplement("Test Content", Now + TimeSpan.FromDays(1));
         @case.RequestSupplement("Still missing photos.", Now + TimeSpan.FromDays(2));
 
         Assert.False(@case.IsSupplementOverdue(Now + TimeSpan.FromDays(15)));
@@ -468,7 +521,7 @@ public class CaseStatusTransitionTests
 
     private static Case CreateTestCase()
     {
-        return new Case("20261005-0001", "Test Subject", "Test Content", Petitioner);
+        return new Case("20261005-0001", "Test Subject", "Test Content", Petitioner, SubmittedBy, Now);
     }
 
     // 受理之前一定要先分派
@@ -495,7 +548,7 @@ public class CaseStatusTransitionTests
                 break;
             case CaseStatus.Closed:
                 AssignAndStartReview(@case);
-                @case.Close();
+                @case.Close("Test Reply");
                 break;
             case CaseStatus.Rejected:
                 @case.Reject("Test Rejection");

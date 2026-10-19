@@ -33,6 +33,10 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("ClosingReply")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -58,6 +62,14 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SubmittedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Petitioner", "CaseTrack.Domain.Cases.Case.Petitioner#Petitioner", b1 =>
                         {
@@ -92,6 +104,8 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("DepartmentId");
 
+                    b.HasIndex("SubmittedBy");
+
                     b.ToTable("Cases", (string)null);
                 });
 
@@ -116,6 +130,10 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset?>("SubmittedAt")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SubmittedContent")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
 
                     b.HasKey("Id");
 

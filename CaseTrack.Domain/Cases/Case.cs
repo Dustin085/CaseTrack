@@ -13,19 +13,27 @@ public class Case
     public IReadOnlyCollection<SupplementRequest> SupplementRequests => _supplementRequests.AsReadOnly();
     public string? RejectionReason { get; private set; }
     public Guid? DepartmentId { get; private set; } // null = 待分派
+    public string? ClosingReply { get; private set; } // 結案回覆，還沒結案時是 null
+    public string SubmittedBy { get; private set; }   // 送件民眾的使用者 Id（token 的 sub）
+    public DateTimeOffset SubmittedAt { get; private set; }
 
-    // 案件編號（每日流水號）需要查資料庫才能保證不重複，由外部產生後傳入
-    public Case(string caseNumber, string subject, string content, Petitioner petitioner)
+    // 案件編號（每日流水號）需要查資料庫才能保證不重複，由外部產生後傳入。
+    // 送件時間也由外部傳入（Handler 用 TimeProvider），Domain 不自己取時間
+    public Case(string caseNumber, string subject, string content, Petitioner petitioner,
+        string submittedBy, DateTimeOffset submittedAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(caseNumber);
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
         ArgumentNullException.ThrowIfNull(petitioner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(submittedBy);
 
         CaseNumber = caseNumber;
         Subject = subject;
         Content = content;
         Petitioner = petitioner;
+        SubmittedBy = submittedBy;
+        SubmittedAt = submittedAt;
     }
 
     // 給 EF Core 從資料庫讀出時使用：EF 沒辦法把值物件（Petitioner）綁定到建構子參數，
@@ -36,6 +44,7 @@ public class Case
         Subject = null!;
         Content = null!;
         Petitioner = null!;
+        SubmittedBy = null!;
     }
 
     public void StartReview()
@@ -59,18 +68,21 @@ public class Case
         Status = CaseStatus.AwaitingSupplement;
     }
 
-    public void SubmitSupplement(DateTimeOffset submittedAt)
+    public void SubmitSupplement(string content, DateTimeOffset submittedAt)
     {
         EnsureCanTransition(CaseStatus.UnderReview, CaseStatus.AwaitingSupplement);
 
-        _supplementRequests.Single(r => r.SubmittedAt is null).MarkSubmitted(submittedAt);
+        _supplementRequests.Single(r => r.SubmittedAt is null).MarkSubmitted(content, submittedAt);
 
         Status = CaseStatus.UnderReview;
     }
 
-    public void Close()
+    public void Close(string reply)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reply);
         EnsureCanTransition(CaseStatus.Closed, CaseStatus.UnderReview);
+
+        ClosingReply = reply;
         Status = CaseStatus.Closed;
     }
 

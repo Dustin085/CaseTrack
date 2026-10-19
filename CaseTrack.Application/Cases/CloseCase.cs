@@ -18,11 +18,11 @@ public sealed class CloseCaseHandler
         _unitOfWork = unitOfWork;
     }
 
-    public async Task HandleAsync(Guid caseId, CancellationToken cancellationToken)
+    public async Task HandleAsync(Guid caseId, string reply, CancellationToken cancellationToken)
     {
         var @case = await _caseRepository.GetByIdAsync(caseId, CaseAccessScope.For(_currentUser), cancellationToken)
             ?? throw new NotFoundException(nameof(Case), caseId);
-        @case.Close();
+        @case.Close(reply);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

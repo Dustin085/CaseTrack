@@ -77,10 +77,11 @@ public sealed class CasesController : ControllerBase
     [HttpPost("{id:guid}/close")]
     public async Task<ActionResult> CloseCase(
         [FromRoute] Guid id,
+        [FromBody] CloseCaseRequest request,
         [FromServices] CloseCaseHandler handler,
         CancellationToken cancellationToken)
     {
-        await handler.HandleAsync(id, cancellationToken);
+        await handler.HandleAsync(id, request.Reply, cancellationToken);
         return NoContent();
     }
 
@@ -115,10 +116,11 @@ public sealed class CasesController : ControllerBase
     [HttpPost("{id:guid}/supplement-submission")]
     public async Task<ActionResult> SubmitSupplement(
         [FromRoute] Guid id,
+        [FromBody] SubmitSupplementRequest request,
         [FromServices] SubmitSupplementHandler handler,
         CancellationToken cancellationToken)
     {
-        await handler.HandleAsync(id, cancellationToken);
+        await handler.HandleAsync(id, request.Content, cancellationToken);
         return NoContent();
     }
 

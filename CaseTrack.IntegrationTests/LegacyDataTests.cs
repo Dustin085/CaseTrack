@@ -18,8 +18,8 @@ public class LegacyDataTests(DatabaseFixture fixture)
         {
             await writeContext.Database.ExecuteSqlAsync(
                 $"""
-                INSERT INTO Cases (Id, CaseNumber, Subject, Content, Status, Petitioner_Name)
-                VALUES ({id}, {caseNumber}, N'舊案件', N'舊案件內容', 'Submitted', '')
+                INSERT INTO Cases (Id, CaseNumber, Subject, Content, Status, Petitioner_Name, SubmittedBy, SubmittedAt)
+                VALUES ({id}, {caseNumber}, N'舊案件', N'舊案件內容', 'Submitted', '', {TestData.SubmittedBy}, {TestData.SubmittedAt})
                 """,
                 cancellationToken);
         }

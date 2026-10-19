@@ -7,6 +7,7 @@ public class SupplementRequest
     public string Reason { get; private set; }
     public DateTimeOffset RequestedAt { get; private set; }
     public DateTimeOffset? SubmittedAt { get; private set; }
+    public string? SubmittedContent { get; private set; } // 還沒補件時是 null
 
     internal SupplementRequest(int sequence, string reason, DateTimeOffset requestedAt)
     {
@@ -16,8 +17,9 @@ public class SupplementRequest
         RequestedAt = requestedAt;
     }
 
-    internal void MarkSubmitted(DateTimeOffset submittedAt)
+    internal void MarkSubmitted(string content, DateTimeOffset submittedAt)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(content);
         if (SubmittedAt is not null)
         {
             throw new InvalidOperationException("This supplement request has already been submitted.");
@@ -27,6 +29,7 @@ public class SupplementRequest
             throw new SubmittedAtBeforeRequestedAtException(submittedAt, RequestedAt);
         }
         SubmittedAt = submittedAt;
+        SubmittedContent = content;
     }
 }
 

@@ -44,8 +44,10 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         await AssertNoContentAsync(PostActionAsync(_officerClient, submitted.Id, "review"));
         await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
             $"api/cases/{submitted.Id}/supplement-requests", new { reason = "缺照片" }, cancellationToken));
-        await AssertNoContentAsync(PostActionAsync(_citizenClient, submitted.Id, "supplement-submission"));
-        await AssertNoContentAsync(PostActionAsync(_officerClient, submitted.Id, "close"));
+        await AssertNoContentAsync(_citizenClient.PostAsJsonAsync(
+            $"api/cases/{submitted.Id}/supplement-submission", new { content = "已補上現場照片的說明" }, cancellationToken));
+        await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
+            $"api/cases/{submitted.Id}/close", new { reply = "已派員修復路燈" }, cancellationToken));
 
         // 用 Location 取回案件：證明 Location 指向的網址真的能用
         var details = await _officerClient.GetFromJsonAsync<CaseDetails>(location, cancellationToken);
@@ -55,9 +57,12 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         Assert.Equal(TestTokens.OfficerDepartmentId, details.DepartmentId);
         Assert.Equal("路燈不亮", details.Subject);
         Assert.Equal("中山路路燈故障", details.Content);
+        Assert.Equal("已派員修復路燈", details.ClosingReply);
+        Assert.NotEqual(default, details.SubmittedAt);
         var supplement = Assert.Single(details.SupplementRequests);
         Assert.Equal("缺照片", supplement.Reason);
         Assert.NotNull(supplement.SubmittedAt);
+        Assert.Equal("已補上現場照片的說明", supplement.SubmittedContent);
     }
 
     [Fact]
@@ -84,7 +89,8 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         var submitted = await _citizenClient.SubmitCaseAsync();
         await _dispatcherClient.AssignAsync(submitted.Id, TestTokens.OfficerDepartmentId);
         await AssertNoContentAsync(PostActionAsync(_officerClient, submitted.Id, "review"));
-        await AssertNoContentAsync(PostActionAsync(_officerClient, submitted.Id, "close"));
+        await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
+            $"api/cases/{submitted.Id}/close", new { reply = "已派員修復路燈" }, cancellationToken));
 
         var response = await PostActionAsync(_officerClient, submitted.Id, "review");
 

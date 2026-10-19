@@ -18,12 +18,20 @@ public sealed class SubmitCaseHandler
     private readonly ICaseNumberGenerator _caseNumberGenerator;
     private readonly ICaseRepository _caseRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICurrentUser _currentUser;
+    private readonly TimeProvider _timeProvider;
 
-    public SubmitCaseHandler(ICaseNumberGenerator caseNumberGenerator, ICaseRepository caseRepository, IUnitOfWork unitOfWork)
+    public SubmitCaseHandler(ICaseNumberGenerator caseNumberGenerator,
+        ICaseRepository caseRepository,
+        IUnitOfWork unitOfWork,
+        ICurrentUser currentUser,
+        TimeProvider timeProvider)
     {
         _caseNumberGenerator = caseNumberGenerator;
         _caseRepository = caseRepository;
         _unitOfWork = unitOfWork;
+        _currentUser = currentUser;
+        _timeProvider = timeProvider;
     }
 
     public async Task<SubmitCaseResult> HandleAsync(SubmitCaseCommand command, CancellationToken cancellationToken)
@@ -34,7 +42,8 @@ public sealed class SubmitCaseHandler
 
         // 取號是獨立的交易，存檔失敗時這個編號就跳過不用（業務上允許跳號）
         var caseNumber = await _caseNumberGenerator.NextAsync(cancellationToken);
-        var @case = new Case(caseNumber, command.Subject, command.Content, petitioner);
+        var @case = new Case(caseNumber, command.Subject, command.Content, petitioner,
+            _currentUser.UserId, _timeProvider.GetUtcNow());
 
         _caseRepository.Add(@case);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

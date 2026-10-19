@@ -12,8 +12,10 @@ public sealed record CaseDetails(
     string Subject,
     string Content,
     string Status,
+    DateTimeOffset SubmittedAt,
     Guid? DepartmentId,
     string? RejectionReason,
+    string? ClosingReply,
     PetitionerDetails Petitioner,
     IReadOnlyList<SupplementRequestDetails> SupplementRequests);
 
@@ -27,7 +29,8 @@ public sealed record SupplementRequestDetails(
     int Sequence,
     string Reason,
     DateTimeOffset RequestedAt,
-    DateTimeOffset? SubmittedAt);
+    DateTimeOffset? SubmittedAt,
+    string? SubmittedContent);
 
 public sealed class GetCaseHandler
 {
@@ -49,7 +52,7 @@ public sealed class GetCaseHandler
         // 從資料庫讀出的補件紀錄沒有順序保證，回傳前依補件次序排序
         var supplementRequests = @case.SupplementRequests
             .OrderBy(r => r.Sequence)
-            .Select(r => new SupplementRequestDetails(r.Sequence, r.Reason, r.RequestedAt, r.SubmittedAt))
+            .Select(r => new SupplementRequestDetails(r.Sequence, r.Reason, r.RequestedAt, r.SubmittedAt, r.SubmittedContent))
             .ToList();
 
         return new CaseDetails(
@@ -58,8 +61,10 @@ public sealed class GetCaseHandler
             @case.Subject,
             @case.Content,
             @case.Status.ToString(),
+            @case.SubmittedAt,
             @case.DepartmentId,
             @case.RejectionReason,
+            @case.ClosingReply,
             ToMaskedDetails(@case.Petitioner),
             supplementRequests);
     }

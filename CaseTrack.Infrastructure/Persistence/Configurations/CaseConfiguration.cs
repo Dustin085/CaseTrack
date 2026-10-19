@@ -23,6 +23,11 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
         builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(30);
 
         builder.Property(c => c.RejectionReason).HasMaxLength(500);
+        builder.Property(c => c.ClosingReply).HasMaxLength(2000);
+
+        // 長度跟稽核的 ChangedBy 一致；民眾查「我的案件」用它過濾，所以加索引
+        builder.Property(c => c.SubmittedBy).HasMaxLength(100);
+        builder.HasIndex(c => c.SubmittedBy);
 
         // 值物件用 ComplexProperty：欄位攤平在 Cases 表（Petitioner_Name…），EF 把它當成 Case 的一部分。
         // 不用 OwnsOne：Owned Type 其實是有隱藏主鍵的 entity，整個換掉值物件時會被追蹤成「刪除舊的 + 新增新的」。
