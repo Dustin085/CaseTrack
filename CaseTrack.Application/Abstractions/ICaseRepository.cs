@@ -1,4 +1,6 @@
 ﻿using CaseTrack.Application.Authorization;
+using CaseTrack.Application.Cases;
+using CaseTrack.Application.Common;
 using CaseTrack.Domain.Cases;
 
 namespace CaseTrack.Application.Abstractions;
@@ -14,5 +16,11 @@ public interface ICaseRepository
     Task<IReadOnlyList<Guid>> GetOverdueSupplementCaseIdsAsync(
         DateTimeOffset now,
         int limit,
+        CancellationToken cancellationToken);
+
+    // 跟 GetByIdAsync 一樣強制傳入範圍：列表只會有使用者看得到的案件，總筆數也只算看得到的
+    Task<PagedResult<CaseSummary>> ListAsync(
+        CaseListQuery query,
+        CaseAccessScope scope,
         CancellationToken cancellationToken);
 }

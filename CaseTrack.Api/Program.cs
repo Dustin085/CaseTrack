@@ -6,6 +6,7 @@ using CaseTrack.Application;
 using CaseTrack.Application.Abstractions;
 using CaseTrack.Application.Authorization;
 using CaseTrack.Infrastructure;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -14,7 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+// enum 在 JSON 裡用名稱（"UnderReview"）而不是數字：數字前端看不懂，而且 enum 插入新成員後數字會對不上
+builder.Services.AddControllers()
+    .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 // Swagger UI 的 Authorize 按鈕：貼上 /dev/token 拿到的 token，之後需要登入的端點會自動帶上 Authorization 標頭

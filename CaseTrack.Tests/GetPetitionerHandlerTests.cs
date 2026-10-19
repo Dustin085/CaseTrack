@@ -1,6 +1,7 @@
 using CaseTrack.Application.Abstractions;
 using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Cases;
+using CaseTrack.Application.Common;
 using CaseTrack.Domain.Cases;
 
 namespace CaseTrack.Tests;
@@ -67,6 +68,9 @@ public class GetPetitionerHandlerTests
 
         public Task<IReadOnlyList<Guid>> GetOverdueSupplementCaseIdsAsync(
             DateTimeOffset now, int limit, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<PagedResult<CaseSummary>> ListAsync(
+            CaseListQuery query, CaseAccessScope scope, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class RecordingAccessLog : IPersonalDataAccessLog

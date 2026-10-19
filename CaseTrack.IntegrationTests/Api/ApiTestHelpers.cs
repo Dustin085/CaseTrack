@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using CaseTrack.Application.Cases;
 
 namespace CaseTrack.IntegrationTests.Api;
@@ -9,6 +10,13 @@ namespace CaseTrack.IntegrationTests.Api;
 internal static class ApiTestHelpers
 {
     public const string ProblemJson = "application/problem+json";
+
+    // 讀 API 回應用的 JSON 設定：enum 只接受名稱（allowIntegerValues: false）。
+    // 如果 API 退回成輸出數字，反序列化會直接失敗，不會悄悄通過
+    public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
+    };
 
     public static readonly object ValidPetitioner = new { name = "王小明", phone = "0912345678" };
 

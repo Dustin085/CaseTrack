@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Cases;
+using CaseTrack.Domain.Cases;
 using CaseTrack.Infrastructure.Persistence.Configurations;
 using static CaseTrack.IntegrationTests.Api.ApiTestHelpers;
 
@@ -146,9 +147,9 @@ public class AuthorizationApiTests : IClassFixture<CaseTrackApiFactory>
         var response = await DismissAsync(_dispatcherClient, submitted.Id, "非本府權責");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        var details = await _dispatcherClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", cancellationToken);
+        var details = await _dispatcherClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", JsonOptions, cancellationToken);
         Assert.NotNull(details);
-        Assert.Equal("Rejected", details.Status);
+        Assert.Equal(CaseStatus.Rejected, details.Status);
         Assert.Equal("非本府權責", details.RejectionReason);
     }
 

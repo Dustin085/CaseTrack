@@ -1,6 +1,7 @@
 using CaseTrack.Api.Authentication;
 using CaseTrack.Api.Contracts;
 using CaseTrack.Application.Cases;
+using CaseTrack.Application.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -149,5 +150,17 @@ public sealed class CasesController : ControllerBase
     {
         await handler.HandleAsync(id, request.Reason, cancellationToken);
         return NoContent();
+    }
+
+    [Authorize(Policy = Policies.CaseReader)]
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<CaseSummary>>> ListCases(
+        [FromQuery] ListCasesRequest request,
+        [FromServices] ListCasesHandler handler,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await handler.HandleAsync(
+            new CaseListQuery(request.Status, request.Keyword, request.Page, request.PageSize),
+            cancellationToken));
     }
 }

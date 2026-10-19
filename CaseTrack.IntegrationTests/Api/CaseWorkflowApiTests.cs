@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CaseTrack.Application.Cases;
+using CaseTrack.Domain.Cases;
 using static CaseTrack.IntegrationTests.Api.ApiTestHelpers;
 
 namespace CaseTrack.IntegrationTests.Api;
@@ -50,10 +51,10 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
             $"api/cases/{submitted.Id}/close", new { reply = "已派員修復路燈" }, cancellationToken));
 
         // 用 Location 取回案件：證明 Location 指向的網址真的能用
-        var details = await _officerClient.GetFromJsonAsync<CaseDetails>(location, cancellationToken);
+        var details = await _officerClient.GetFromJsonAsync<CaseDetails>(location, JsonOptions, cancellationToken);
         Assert.NotNull(details);
         Assert.Equal(submitted.Id, details.Id);
-        Assert.Equal("Closed", details.Status);
+        Assert.Equal(CaseStatus.Closed, details.Status);
         Assert.Equal(TestTokens.OfficerDepartmentId, details.DepartmentId);
         Assert.Equal("路燈不亮", details.Subject);
         Assert.Equal("中山路路燈故障", details.Content);
@@ -75,10 +76,23 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
             $"api/cases/{submitted.Id}/reject", new { reason = "非本單位業務" }, cancellationToken));
 
-        var details = await _officerClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", cancellationToken);
+        var details = await _officerClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", JsonOptions, cancellationToken);
         Assert.NotNull(details);
-        Assert.Equal("Rejected", details.Status);
+        Assert.Equal(CaseStatus.Rejected, details.Status);
         Assert.Equal("非本單位業務", details.RejectionReason);
+    }
+
+    // API 的合約：狀態在 JSON 裡是名稱。直接看原始的 JSON，不依賴測試端的反序列化設定
+    [Fact]
+    public async Task GetCase_Status_IsSerializedAsName()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var submitted = await _citizenClient.SubmitCaseAsync();
+
+        var body = await _dispatcherClient.GetStringAsync($"api/cases/{submitted.Id}", cancellationToken);
+
+        using var json = JsonDocument.Parse(body);
+        Assert.Equal("Submitted", json.RootElement.GetProperty("status").GetString());
     }
 
     // 業務規則錯誤 → 409，並帶出目前狀態與目標狀態，讓前端能顯示原因

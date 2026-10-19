@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using CaseTrack.Application.Cases;
+using CaseTrack.Domain.Cases;
 using CaseTrack.Infrastructure.Persistence.Configurations;
 using static CaseTrack.IntegrationTests.Api.ApiTestHelpers;
 
@@ -32,10 +33,10 @@ public class AssignmentApiTests : IClassFixture<CaseTrackApiFactory>
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         // 用分派人員查詢：分派到交通局之後，工務局的承辦人已經看不到這個案件了
-        var details = await _dispatcherClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", cancellationToken);
+        var details = await _dispatcherClient.GetFromJsonAsync<CaseDetails>($"api/cases/{submitted.Id}", JsonOptions, cancellationToken);
         Assert.NotNull(details);
         Assert.Equal(DepartmentSeed.Transportation, details.DepartmentId);
-        Assert.Equal("Submitted", details.Status);
+        Assert.Equal(CaseStatus.Submitted, details.Status);
     }
 
     // 角色不對：在讀取案件之前就被擋下，不管案件存不存在都是 403，所以不會洩漏案件是否存在

@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<AssignCaseHandler>();
         services.AddScoped<DismissCaseHandler>();
         services.AddScoped<GetPetitionerHandler>();
+        services.AddScoped<ListCasesHandler>();
         return services;
     }
 }
