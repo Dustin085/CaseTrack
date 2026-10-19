@@ -7,36 +7,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace CaseTrack.Api.Controllers;
 
-// 預設拒絕：整個 Controller 都要登入，例外的端點個別加 [AllowAnonymous]。
-// 之後新增端點忘了設定，結果是「多一道登入」，而不是「少一道登入」。
+// 承辦端的 API。民眾的送件、補件、查詢在 MyCasesController（/api/my/cases）。
+// 預設拒絕：整個 Controller 都要登入，之後新增端點忘了設定 Policy，結果是「多一道登入」，而不是「少一道登入」。
 // 每個端點再用 Policy 限制角色（第 1 層，403）；能碰哪些案件由 Handler 的 CaseAccessScope 決定（第 2 層，404）
 [Authorize]
 [ApiController]
 [Route("api/cases")]
 public sealed class CasesController : ControllerBase
 {
-    // 民眾送出陳情，不需要登入
-    [AllowAnonymous]
-    [HttpPost]
-    public async Task<ActionResult<SubmitCaseResult>> SubmitCase(
-        [FromBody] SubmitCaseRequest request,
-        [FromServices] SubmitCaseHandler handler,
-        CancellationToken cancellationToken)
-    {
-        var result = await handler.HandleAsync(
-            new SubmitCaseCommand(
-                request.Subject,
-                request.Content,
-                request.Petitioner.Name,
-                request.Petitioner.Phone,
-                request.Petitioner.Email,
-                request.Petitioner.Address),
-            cancellationToken);
-
-        // 201 Created + Location 標頭指向新案件的網址
-        return CreatedAtAction(nameof(GetCase), new { id = result.Id }, result);
-    }
-
     [Authorize(Policy = Policies.CaseReader)]
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<CaseDetails>> GetCase(
@@ -108,20 +86,6 @@ public sealed class CasesController : ControllerBase
         CancellationToken cancellationToken)
     {
         await handler.HandleAsync(id, request.Reason, cancellationToken);
-        return NoContent();
-    }
-
-    // 民眾補件：補的是目前唯一一筆未補件的請求，所以不需要在網址指定是哪一筆。
-    // 已知漏洞：民眾端還沒有登入，任何人只要知道案件的 Id 就能補件，之後改成「案件編號 + 驗證資訊」時處理
-    [AllowAnonymous]
-    [HttpPost("{id:guid}/supplement-submission")]
-    public async Task<ActionResult> SubmitSupplement(
-        [FromRoute] Guid id,
-        [FromBody] SubmitSupplementRequest request,
-        [FromServices] SubmitSupplementHandler handler,
-        CancellationToken cancellationToken)
-    {
-        await handler.HandleAsync(id, request.Content, cancellationToken);
         return NoContent();
     }
 

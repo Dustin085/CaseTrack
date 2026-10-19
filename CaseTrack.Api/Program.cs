@@ -75,7 +75,8 @@ builder.Services
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.CaseReader, policy => policy.RequireRole(Roles.CaseOfficer, Roles.Supervisor, Roles.Dispatcher))
     .AddPolicy(Policies.CaseHandler, policy => policy.RequireRole(Roles.CaseOfficer, Roles.Supervisor))
-    .AddPolicy(Policies.CaseDispatcher, policy => policy.RequireRole(Roles.Dispatcher));
+    .AddPolicy(Policies.CaseDispatcher, policy => policy.RequireRole(Roles.Dispatcher))
+    .AddPolicy(Policies.Citizen, policy => policy.RequireRole(Roles.Citizen));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();

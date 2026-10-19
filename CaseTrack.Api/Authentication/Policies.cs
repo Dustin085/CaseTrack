@@ -8,4 +8,5 @@ public static class Policies
     public const string CaseReader = "CaseReader";            // 查詢案件：承辦人、主管、分派人員
     public const string CaseHandler = "CaseHandler";          // 處理案件（受理、補件、結案、退件）：承辦人、主管
     public const string CaseDispatcher = "CaseDispatcher";    // 分派、不予受理：分派人員
+    public const string Citizen = "Citizen";                  // 民眾端（送件、補件、查自己的案件）：民眾
 }
