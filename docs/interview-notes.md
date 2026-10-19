@@ -418,7 +418,7 @@ API 本身不管帳號密碼，只負責驗證 token（OAuth 的 Resource Server
 - **為什麼不直接傳 `Guid? departmentId`**：`null` 同時會代表「全部」（分派人員）和「沒有」（管理者），Repository 分辨不出來，只要判斷錯一次，管理者就看得到所有個資。獨立的型別讓不合法的狀態無法表示。
 - **規則放在 Application，翻譯放在 Infrastructure**：「誰能看哪些案件」是業務規則；Repository 只負責把範圍轉成 SQL，不需要知道角色。之後的列表、搜尋、報表都用同一個範圍。
 - **處處預設拒絕**：`For()` 最後一行是 `None`（新增角色忘了處理 → 什麼都看不到）；承辦人沒有單位 → `None`；enum 明確寫 `None = 0`（沒設定的值是 0）；Repository 的 `switch` 把每一種範圍寫出來，不認識的種類拋例外，不能寫成「Department 才過濾、其他不過濾」。
-- **明確繞過的地方要搜得到**：逾期排程和民眾補件（已知漏洞）明確寫 `CaseAccessScope.All` 並加註解，搜尋它就找得到所有繞過單位限制的地方。
+- **明確繞過的地方要搜得到**：逾期排程和民眾補件（已知漏洞）明確寫 `CaseAccessScope.All` 並加註解，搜尋它就找得到所有繞過單位限制的地方。（10/19 民眾改成要登入後，補件改用 `ForPetitioner`，漏洞修掉，見第 31 題）
 - **跟 EF Global Query Filter 比較**：Global Query Filter 不會忘記，但它是隱形的，而且 Dapper、直接執行的 SQL 不會套用。
 - **和 Spring 的差別**：Spring 常見的寫法是每個 service 方法裡寫 `if (!dept.equals(...)) throw`，忘了寫沒有任何東西提醒；這裡是忘了傳就編譯不過。
 
@@ -469,3 +469,97 @@ API 本身不管帳號密碼，只負責驗證 token（OAuth 的 Resource Server
 - **一個因為錯誤原因通過的測試**：我一開始用稽核紀錄的 `EntityId` 找查詢紀錄，但查詢紀錄的主鍵是 IDENTITY，攔截器在存檔前執行，拿到的是 EF 的暫時值（負數），永遠對不上，測試永遠通過。反向驗證時才發現，改用 `Changes` 裡的案件 Id 找。
 
 **證據**：`GetPetitionerHandler`、`PersonalDataAccessEntry`；`PersonalDataApiTests`、`GetPetitionerHandlerTests`。
+
+---
+
+## 2026-10-19：送件人與結案回覆、案件列表、套件弱點、民眾登入
+
+### 28. 列表 API 的分頁和篩選怎麼做？踩過什麼坑？
+
+**30 秒版本**
+`GET /api/cases` 支援狀態、關鍵字篩選和頁碼分頁（預設 20 筆、最多 100 筆）。查詢一律先套用使用者的範圍，再篩選、算總筆數、排序、分頁，最後在 SQL 裡直接投影成摘要，不讀出陳情人的欄位。我寫了一組專門讓錯誤現形的測試，連「SQL 有沒有選到個資欄位」都檢查。
+
+**展開**
+- **總筆數也要套用範圍**：從整張表算的話，數字是錯的，而且會洩漏全系統的案件數。
+- **關鍵字是「主旨或案件編號」**：連續寫兩個 `Where` 是 AND，關鍵字只出現在主旨的案件就找不到了。測試兩個方向都測。
+- **LIKE 的萬用字元**：EF 的 `Contains` 會跳脫 `%`、`_`，自己用 `EF.Functions.Like` 拼字串就要自己跳脫，否則搜尋「%」會列出全部。
+- **穩定排序**：只依送件時間排序的話，時間相同的案件在不同頁的順序不固定，翻頁時會重複或漏掉；加上案件編號當第二排序。測試刻意讓 5 筆案件的送件時間完全相同。
+- **投影要寫在 SQL 能翻譯的地方**：`Select` 裡呼叫自訂方法，EF 翻譯不了，會把整個 `Case`（含陳情人）讀進記憶體再轉換。回傳的資料看起來一樣，只有看 SQL 才發現。我用 `DbCommandInterceptor` 記錄實際的 SQL，斷言裡面沒有 `Petitioner_` 欄位。
+- **頁碼分頁的限制**：資料很多時，`OFFSET` 越後面越慢，翻頁時有新資料也會讓內容位移。真的有這個需求再換成 keyset（用上一頁最後一筆當條件）。
+- **範圍是「什麼都沒有」時直接回傳空結果**，不送查詢到資料庫。
+
+**證據**：`CaseRepository.ListAsync`、`ListCasesRequest`；`CaseListTests`（12 個，含 `SqlRecorder`）、`AuthorizationApiTests` 的列表測試；反向驗證：放回 6 種 bug，每一種都有測試失敗。
+
+---
+
+### 29. enum 在 API 裡輸出成名稱還是數字？
+
+**30 秒版本**
+名稱。全域註冊 `JsonStringEnumConverter`，狀態輸出成 `"UnderReview"` 而不是 `1`。數字對前端沒有意義，而且 enum 的順序一改，前端就默默顯示錯誤的狀態；名稱是穩定的合約。
+
+**展開**
+- C# 端仍然用 enum 型別（`CaseStatus`），不是 string，編譯器幫忙檢查拼字。
+- 測試讀回應時用 `allowIntegerValues: false` 的嚴格設定：如果 API 退回成輸出數字，反序列化直接失敗，而不是悄悄通過。另外有一個測試直接看原始 JSON，不依賴測試端的設定。
+- 跟 Java 的對照：Jackson 預設就輸出 enum 的名稱，System.Text.Json 預設是數字，要自己設定。
+
+**證據**：`Program.cs` 的 `AddJsonOptions`、`ApiTestHelpers.JsonOptions`、`CaseWorkflowApiTests.GetCase_Status_IsSerializedAsName`。
+
+---
+
+### 30. 套件有弱點，但它是間接引用的，怎麼處理？
+
+**30 秒版本**
+`System.Security.Cryptography.Pkcs` 有兩個阻斷服務的弱點，它是 EF Core → SqlClient 間接帶進來的。升級 EF Core 到最新版也修不到，因為 SqlClient 仍然依賴有問題的版本。我開啟 NuGet 的 transitive pinning，在 `Directory.Packages.props` 直接指定修補後的版本，並寫註解說明原因和什麼時候可以拿掉。
+
+**展開**
+- 怎麼發現：`dotnet list package --vulnerable --include-transitive`，只看直接引用的套件會漏掉。
+- **集中管理版本**（Central Package Management）：所有專案的套件版本寫在同一個檔案，10.0.x 的套件整組一起升級，不會出現 A 專案 10.0.5、B 專案 10.0.13。
+- 指定間接套件的版本有風險（上層套件沒有用這個版本測試過），所以升級後跑完整的測試，並留下「上層更新後拿掉」的註解，避免永遠釘在某個版本。
+- 套件修好了還不夠：**執行環境（.NET Runtime）也要更新**到同一個安全性修補版本。
+- 政府案常要過弱點掃描，這類「間接相依的弱點」是最常被掃到、也最常被忽略的。
+
+**證據**：`Directory.Packages.props` 的 `Security` 區塊與註解、commit `776c4f4`。
+
+---
+
+### 31. 民眾和承辦人用同一組 API 嗎？
+
+**30 秒版本**
+分開。民眾用 `/api/my/cases`，整個 Controller 只有民眾角色能呼叫，範圍一律是「自己送出的案件」；承辦人用 `/api/cases`。兩邊回傳不同的 DTO，民眾看不到承辦端的內部欄位。範圍由端點決定，不是把角色合併，所以承辦人自己也陳情時，兩邊各看各的，不需要「本單位 + 本人」這種聯集的範圍。
+
+**展開**
+- **同一個端點依角色回傳不同內容的風險**：之後承辦端加了內部欄位（承辦人備註、內部簽核），只要哪裡忘了判斷角色，就洩漏給民眾。分開之後，民眾的 DTO 根本沒有那些欄位。
+- **Policy 加在 Controller 類別上**：之後新增民眾端點不會忘記限制角色；承辦端的 Controller 也不再有任何 `[AllowAnonymous]`。
+- **修掉一個已知漏洞**：以前民眾不用登入，補件只能用「全部」的範圍，任何人知道案件 Id 就能補件。現在補件用民眾自己的範圍，補別人的案件得到 404。
+- **本人看自己的個資**：不遮罩、不寫查詢紀錄（查詢紀錄是防公務員查看別人的個資），但回應仍然 `no-store`。
+- **送件的 `Location` 標頭**：原本指向承辦端的網址，民眾去呼叫會 403；搬過去之後改指向民眾自己的詳情，測試直接用 `Location` 取回案件，證明它真的能用。
+- **送件人來自 token 的 `sub`**，不是請求內容，民眾無法冒用別人的身分送件。
+- 測試資料：每個測試用不同的民眾 Id，共用的資料庫裡有其他測試的案件，總筆數才能精確比對。
+
+**證據**：`MyCasesController`、`CaseAccessScope.ForPetitioner`、`GetMyCaseHandler`；`MyCasesApiTests`；反向驗證：補件改回「全部」、詳情改用承辦端的範圍、拿掉 Policy 等 6 種 bug 都有測試失敗。
+
+---
+
+### 32. 畫面要顯示另一個聚合的資料（例如單位名稱），怎麼查？
+
+**30 秒版本**
+寫入和讀取分開處理。寫入（送件、結案）經過 Repository 和聚合，因為要執行業務規則；讀取只是要顯示，用專用的查詢直接 JOIN、投影成 DTO，一次 SQL 就拿到案件和單位名稱，不載入 Domain 實體。這是簡化版的 CQRS。（設計已定，預計做前端時實作）
+
+**展開**
+- **不在 Handler 裡再查一次 `IDepartmentRepository`**：詳情頁只是多一次查詢，但列表 20 筆就變成 N+1；而且 Repository 是用來讀寫聚合的，為了一個名稱載入整個實體，用途不對。
+- **不在 `Case` 加導覽屬性 `Department`**：兩個聚合之間只用 Id 參照，加了導覽屬性，`Case` 就能「走到」另一個聚合，界線就不見了（Java JPA 的 `@ManyToOne` 也有同樣的問題）。
+- 列表其實已經是這樣做：`Select new CaseSummary(...)` 直接在 SQL 投影。
+- 另一個做法：單位很少而且很少變動，前端呼叫一次單位清單自己對照，或後端快取。
+
+---
+
+### 33. 新增必填欄位，資料庫裡的舊資料怎麼辦？
+
+**30 秒版本**
+看階段。開發階段沒有真實資料，我直接刪掉資料庫重建，migration 保持乾淨，不寫處理假資料的程式。上線之後就不能這樣做：要分三步，先加可為 null 的欄位、用 SQL 回填舊資料、再改成 NOT NULL，而且回填的值要跟業務單位確認（例如舊案件的送件人要填什麼）。
+
+**展開**
+- migration 只描述 schema 的變化，舊資料的處理要另外寫在 migration 的 `Sql()` 裡，或用獨立的資料修正腳本，並且先在正式資料的副本上演練。
+- 政府系統的資料不能隨便「補一個預設值」：舊案件沒有送件人時，填「系統匯入」並記錄原因，比假裝有人送件誠實。
+
+**證據**：migration `AddCaseSubmissionAndReplies`（`SubmittedBy`、`SubmittedAt` 直接 NOT NULL）。
