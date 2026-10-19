@@ -119,9 +119,21 @@ public class PersonalDataApiTests : IClassFixture<CaseTrackApiFactory>
     {
         var caseId = await SubmitAndAssignToPublicWorksAsync();
 
-        var response = await GetPetitionerAsync(_citizenClient, caseId);
+        var response = await GetPetitionerAsync(_factory.CreateClient(), caseId);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // 民眾要看自己的資料走 /api/my/cases/{id}；承辦端的個資端點不開放，也不留查詢紀錄
+    [Fact]
+    public async Task GetPetitioner_ByCitizen_ReturnsForbiddenWithoutRecord()
+    {
+        var caseId = await SubmitAndAssignToPublicWorksAsync();
+
+        var response = await GetPetitionerAsync(_citizenClient, caseId);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(await GetAccessEntriesAsync(caseId));
     }
 
     // ── Helpers ──────────────────────────────────────────

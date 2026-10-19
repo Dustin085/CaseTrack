@@ -111,7 +111,7 @@ public class AuthenticationApiTests : IClassFixture<CaseTrackApiFactory>
             .OrderBy(a => a.Id)
             .Select(a => a.ChangedBy)
             .ToListAsync(cancellationToken);
-        Assert.Equal(["anonymous", TestTokens.DispatcherUserId, TestTokens.OfficerUserId], changedBy);
+        Assert.Equal([TestTokens.CitizenUserId, TestTokens.DispatcherUserId, TestTokens.OfficerUserId], changedBy);
     }
 
     private async Task<HttpResponseMessage> GetNonexistentCaseAsync(string? token)

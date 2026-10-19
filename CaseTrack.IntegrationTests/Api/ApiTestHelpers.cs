@@ -25,7 +25,7 @@ internal static class ApiTestHelpers
         this HttpClient citizenClient, string subject = "路燈不亮", string content = "中山路路燈故障")
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var response = await citizenClient.PostAsJsonAsync("api/cases",
+        var response = await citizenClient.PostAsJsonAsync("api/my/cases",
             new { subject, content, petitioner = ValidPetitioner }, cancellationToken);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

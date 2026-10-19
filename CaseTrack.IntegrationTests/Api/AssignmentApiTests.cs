@@ -12,12 +12,14 @@ namespace CaseTrack.IntegrationTests.Api;
 [Collection(nameof(DatabaseCollection))]
 public class AssignmentApiTests : IClassFixture<CaseTrackApiFactory>
 {
+    private readonly HttpClient _anonymousClient;
     private readonly HttpClient _citizenClient;
     private readonly HttpClient _dispatcherClient;
     private readonly HttpClient _officerClient;
 
     public AssignmentApiTests(CaseTrackApiFactory factory)
     {
+        _anonymousClient = factory.CreateClient();
         _citizenClient = factory.CreateCitizenClient();
         _dispatcherClient = factory.CreateDispatcherClient();
         _officerClient = factory.CreateOfficerClient();
@@ -55,9 +57,20 @@ public class AssignmentApiTests : IClassFixture<CaseTrackApiFactory>
     {
         var submitted = await _citizenClient.SubmitCaseAsync();
 
-        var response = await _citizenClient.PostAssignmentAsync(submitted.Id, DepartmentSeed.PublicWorks);
+        var response = await _anonymousClient.PostAssignmentAsync(submitted.Id, DepartmentSeed.PublicWorks);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    // 民眾有登入，但不能分派自己的案件
+    [Fact]
+    public async Task AssignCase_ByCitizen_ReturnsForbidden()
+    {
+        var submitted = await _citizenClient.SubmitCaseAsync();
+
+        var response = await _citizenClient.PostAssignmentAsync(submitted.Id, DepartmentSeed.PublicWorks);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     // 單位在請求內容裡，不存在是「送來的資料有問題」→ 400，而且跟沒填一樣指出 DepartmentId 欄位

@@ -9,7 +9,7 @@ namespace CaseTrack.IntegrationTests.Api;
 
 // 透過 HTTP 測整個 API：路由、模型繫結、驗證、例外處理、JSON 序列化都會經過。
 // 站在外部使用者的角度：請求用匿名型別，狀態比對字串（API 的合約），不依賴 Domain 的型別。
-// 用三個 client 代表三種實際的使用者：沒有登入的民眾（送件、補件）、分派人員（分派）、工務局的承辦人（處理案件）。
+// 用三個 client 代表三種實際的使用者：民眾（送件、補件、查看結果）、分派人員（分派）、工務局的承辦人（處理案件）。
 [Collection(nameof(DatabaseCollection))]
 public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
 {
@@ -30,7 +30,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         var cancellationToken = TestContext.Current.CancellationToken;
 
         // 提交：201 + Location
-        var submitResponse = await _citizenClient.PostAsJsonAsync("api/cases",
+        var submitResponse = await _citizenClient.PostAsJsonAsync("api/my/cases",
             new { subject = "路燈不亮", content = "中山路路燈故障", petitioner = ValidPetitioner },
             cancellationToken);
         Assert.Equal(HttpStatusCode.Created, submitResponse.StatusCode);
@@ -46,16 +46,15 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
             $"api/cases/{submitted.Id}/supplement-requests", new { reason = "缺照片" }, cancellationToken));
         await AssertNoContentAsync(_citizenClient.PostAsJsonAsync(
-            $"api/cases/{submitted.Id}/supplement-submission", new { content = "已補上現場照片的說明" }, cancellationToken));
+            $"api/my/cases/{submitted.Id}/supplement-submission", new { content = "已補上現場照片的說明" }, cancellationToken));
         await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
             $"api/cases/{submitted.Id}/close", new { reply = "已派員修復路燈" }, cancellationToken));
 
-        // 用 Location 取回案件：證明 Location 指向的網址真的能用
-        var details = await _officerClient.GetFromJsonAsync<CaseDetails>(location, JsonOptions, cancellationToken);
+        // 民眾用 Location 取回案件：證明 Location 指向的是民眾自己查得到的網址，而且看得到處理結果
+        var details = await _citizenClient.GetFromJsonAsync<CitizenCaseDetails>(location, JsonOptions, cancellationToken);
         Assert.NotNull(details);
         Assert.Equal(submitted.Id, details.Id);
         Assert.Equal(CaseStatus.Closed, details.Status);
-        Assert.Equal(TestTokens.OfficerDepartmentId, details.DepartmentId);
         Assert.Equal("路燈不亮", details.Subject);
         Assert.Equal("中山路路燈故障", details.Content);
         Assert.Equal("已派員修復路燈", details.ClosingReply);
@@ -64,6 +63,12 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         Assert.Equal("缺照片", supplement.Reason);
         Assert.NotNull(supplement.SubmittedAt);
         Assert.Equal("已補上現場照片的說明", supplement.SubmittedContent);
+
+        // 承辦端看到的是同一件案件，分派到工務局
+        var officerDetails = await _officerClient.GetFromJsonAsync<CaseDetails>(
+            $"api/cases/{submitted.Id}", JsonOptions, cancellationToken);
+        Assert.NotNull(officerDetails);
+        Assert.Equal(TestTokens.OfficerDepartmentId, officerDetails.DepartmentId);
     }
 
     [Fact]
@@ -120,7 +125,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
     public async Task GetCase_WithPetitioner_ReturnsMaskedPetitioner()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var submitResponse = await _citizenClient.PostAsJsonAsync("api/cases",
+        var submitResponse = await _citizenClient.PostAsJsonAsync("api/my/cases",
             new
             {
                 subject = "路燈不亮",
@@ -134,7 +139,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         // 承辦人只看得到本單位的案件，要先分派
         await _dispatcherClient.AssignAsync(submitted.Id, TestTokens.OfficerDepartmentId);
 
-        var response = await _officerClient.GetAsync(submitResponse.Headers.Location, cancellationToken);
+        var response = await _officerClient.GetAsync($"api/cases/{submitted.Id}", cancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -167,7 +172,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        var response = await _citizenClient.PostAsJsonAsync("api/cases",
+        var response = await _citizenClient.PostAsJsonAsync("api/my/cases",
             new { subject = "", content = "中山路路燈故障", petitioner = ValidPetitioner },
             cancellationToken);
 
@@ -180,7 +185,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
     {
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        var response = await _citizenClient.PostAsJsonAsync("api/cases",
+        var response = await _citizenClient.PostAsJsonAsync("api/my/cases",
             new { subject = "路燈不亮", content = "中山路路燈故障", petitioner = new { name = "王小明", phone = "  " } },
             cancellationToken);
 

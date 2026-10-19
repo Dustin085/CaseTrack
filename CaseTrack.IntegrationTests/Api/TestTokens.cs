@@ -26,6 +26,12 @@ internal static class TestTokens
     // 分派人員不屬於任何承辦單位
     public const string DispatcherUserId = "u-dispatcher-1";
 
+    // 民眾：沒有單位
+    public const string CitizenUserId = "u-citizen-1";
+
+    public static string CreateCitizenToken(string userId = CitizenUserId) =>
+        Create(userId, [Roles.Citizen]);
+
     public static string CreateOfficerToken() =>
         Create(OfficerUserId, [Roles.CaseOfficer], OfficerDepartmentId.ToString());
 

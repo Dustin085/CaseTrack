@@ -14,8 +14,9 @@ public sealed class CaseTrackApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:SigningKey", TestTokens.SigningKey);
     }
 
-    // 沒有登入的民眾
-    public HttpClient CreateCitizenClient() => CreateClient();
+    // 登入的民眾。要測「民眾 A 看不到民眾 B 的案件」時，傳入不同的 userId
+    public HttpClient CreateCitizenClient(string userId = TestTokens.CitizenUserId) =>
+        CreateClient().WithBearerToken(TestTokens.CreateCitizenToken(userId));
 
     // 工務局的承辦人
     public HttpClient CreateOfficerClient() => CreateClient().WithBearerToken(TestTokens.CreateOfficerToken());
