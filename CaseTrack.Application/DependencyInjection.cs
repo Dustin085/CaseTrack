@@ -1,4 +1,5 @@
 using CaseTrack.Application.Cases;
+using CaseTrack.Application.Departments;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaseTrack.Application;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<ListCasesHandler>();
         services.AddScoped<ListMyCasesHandler>();
         services.AddScoped<GetMyCaseHandler>();
+        services.AddScoped<ListDepartmentsHandler>();
         return services;
     }
 }
