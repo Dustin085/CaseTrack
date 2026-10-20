@@ -5,6 +5,14 @@
 // 狀態用名稱輸出（後端的 JsonStringEnumConverter）
 export type CaseStatus = 'Submitted' | 'UnderReview' | 'AwaitingSupplement' | 'Closed' | 'Rejected'
 
+export enum Roles {
+  CaseOfficer = 'CaseOfficer',
+  Supervisor = 'Supervisor',
+  Dispatcher = 'Dispatcher',
+  Administrator = 'Administrator',
+  Citizen = 'Citizen',
+}
+
 // ── 身分 ────────────────────────────────────────────────
 
 // POST /dev/token（只有開發環境）

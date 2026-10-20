@@ -1,7 +1,70 @@
 <script setup lang="ts">
+import { Roles, type DevTokenRequest } from '@/api/types'
+import { useAuth } from '@/composables/useAuth'
+import { ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+const errorMessage = ref<string | null>(null)
 // 時段 3：選擇測試帳號 → POST /dev/token → 保存 token → 導向「我的案件」
+const { login } = useAuth()
+const router = useRouter()
+const route = useRoute()
+
+const requests: DevTokenRequest[] = [
+  {
+    userId: '7f3a2c91-8d64-4b0e-a521-6c9f2e71d843',
+    name: '民眾A',
+    roles: [Roles.Citizen],
+    departmentId: null,
+  },
+  {
+    userId: 'b2e8d415-6a73-49cf-8d20-f1a6c3e95704',
+    name: '民眾B',
+    roles: [Roles.Citizen],
+    departmentId: null,
+  },
+  {
+    userId: 'c91f6a28-3e45-47b2-a8d1-5f0c9e624713',
+    name: '工務局承辦人',
+    roles: [Roles.CaseOfficer],
+    departmentId: 'f3c0543e-db7c-464b-8016-d71088ef6b83',
+  },
+  {
+    userId: '4d7b1e93-a526-4c80-9f34-2b8e6d1a705c',
+    name: '分派人員',
+    roles: [Roles.Dispatcher],
+    departmentId: null,
+  },
+]
+
+// 登入後要回到哪一頁。query 的值可能是 string、null 或陣列（?redirect=a&redirect=b），只接受一個字串；
+// 而且只接受站內的路徑：開頭是 "/"，但不是 "//"（"//evil.com" 是省略協定的外部網址）。
+// 網址是使用者可以任意修改的輸入，不能直接拿來導頁
+function redirectTarget(): string {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
+    return redirect
+  }
+  return '/my/cases'
+}
+
+// 要 async/await：login() 回傳 Promise，不等它的話，
+// ① 還沒登入完成就導頁，beforeEach 看到沒登入又導回登入頁；② 登入失敗的例外不會進到 catch
+const handleLogin = async (request: DevTokenRequest) => {
+  errorMessage.value = null
+  try {
+    await login(request)
+    await router.push(redirectTarget())
+  } catch (e) {
+    errorMessage.value = e instanceof Error ? e.message : '發生未知錯誤'
+  }
+}
 </script>
 
 <template>
   <h1>登入</h1>
+  <button v-for="request in requests" :key="request.userId" v-on:click="handleLogin(request)">
+    {{ request.name }}
+  </button>
+  <p v-if="errorMessage">{{ errorMessage }}</p>
 </template>
