@@ -563,3 +563,121 @@ API 本身不管帳號密碼，只負責驗證 token（OAuth 的 Resource Server
 - 政府系統的資料不能隨便「補一個預設值」：舊案件沒有送件人時，填「系統匯入」並記錄原因，比假裝有人送件誠實。
 
 **證據**：migration `AddCaseSubmissionAndReplies`（`SubmittedBy`、`SubmittedAt` 直接 NOT NULL）。
+
+---
+
+## 2026-10-20～21：前端（Vue 3 + TypeScript）、登入、民眾端畫面
+
+### 34. 前端怎麼知道登入的是誰？為什麼不直接解開 JWT？
+
+**30 秒版本**
+後端提供 `GET /api/me`，回傳「後端實際認定的」身分：Id、姓名、角色、單位，前端用它決定畫面要顯示什麼。前端不解開 Access Token：在 OIDC 裡它是給 API 看的，有些 IdP 的 Access Token 前端根本解不開；而且後端之後會用 `IClaimsTransformation` 轉換角色和單位，token 裡的資料就跟後端認定的不一樣了，前端會出現「畫面顯示有權限，按下去卻 403」。
+
+**展開**
+- 前端的判斷只是使用者體驗，真正的權限檢查一定在後端。使用者改了前端的狀態，按下去還是會被後端擋下。
+- `/api/me` 沒有業務邏輯，所以不經過 Application 的 Handler：判斷標準是「換成 gRPC 或排程呼叫，這段邏輯還需要嗎？」只跟 HTTP 有關的，就留在 Controller。
+- 真實的 IdP 不會給我們資料庫的單位 Guid：`sub`、`name` 是標準欄位；角色沒有標準（Entra ID 的 App Roles、AD FS 的 Claim 規則、Keycloak 的巢狀結構）；單位通常是系統自己的權限表，或 IdP 給代碼、後端在 `IClaimsTransformation` 裡轉換（這就是 `Department.Code` 的用途）。架構上只有 `HttpCurrentUser` 知道 claim 的名稱，換 IdP 時 Handler 和授權都不用改。
+- 寫測試時發現：`Claim.ToString()` 回傳的是 `"name: 王小明"`，要用 `.Value`；回應的 `IReadOnlySet<string>` 序列化沒問題，System.Text.Json 卻讀不回來，API 合約改用 JSON 能表達的 `IReadOnlyList`。兩個都是測試把回應真的讀回來才抓到。
+
+**證據**：`MeController`、`MeResponse`；`MeAndDepartmentsApiTests`。
+
+---
+
+### 35. 前後端分開開發，怎麼連接？需要 CORS 嗎？
+
+**30 秒版本**
+不需要。開發時由 Vite 的 proxy 把 `/api`、`/dev` 轉給 ASP.NET Core，瀏覽器只看到同一個來源。正式環境也是同一個網域：IIS 用 URL Rewrite 轉發，或直接把建置出來的靜態檔案放進 ASP.NET Core 的 `wwwroot`，所有不認識的路徑用 `MapFallbackToFile("index.html")` 交給 Vue Router。開發和正式的架構一致，就不需要 CORS。
+
+**展開**
+- 跟 Next.js 的 `rewrites` 不同：Next 在正式環境有 Node.js 伺服器，rewrites 一直有效；Vite 的 proxy 只在 `npm run dev` 時存在，建置出來只是靜態檔案。這也是不用 Nuxt 的原因之一：系統全部要登入、不需要 SEO，多一個 Node.js 服務只是多一項維護和弱點掃描。
+- 踩過的坑：proxy 一開始指向 http 的 port，後端用 https 設定檔啟動時，`UseHttpsRedirection` 回 307 把瀏覽器轉到 https 的 port，就變成跨來源。用 curl 看到 307 和 `Location` 才找到原因，改指向 https，並加上 `secure: false`（開發憑證是自己簽的）。
+- 前後端放在同一個 repo：後端改欄位時，前端的型別定義在同一個 commit 一起改。
+
+**證據**：`CaseTrack.Web/vite.config.ts`。
+
+---
+
+### 36. token 存在哪裡？有什麼資安考量？
+
+**30 秒版本**
+開發階段存在 `sessionStorage`：重新整理後還在、關掉分頁就清掉，每個分頁各自獨立，可以一個分頁當民眾、另一個當承辦人。缺點是 XSS 讀得到。正式環境我會讓後端兼任 BFF：用 `AddOpenIdConnect` 對接 IdP，token 留在伺服器，瀏覽器只拿 HttpOnly、SameSite 的 cookie，再加上 antiforgery token 防 CSRF。
+
+**展開**
+- 程式裡 token 有兩份：記憶體的 `ref`（響應式，執行時用的）和 `sessionStorage`（存檔，載入時讀一次）。所有修改都經過同一個 `setToken()`，兩份不會不同步。
+- 兩種攻擊的取捨：Bearer token 在標頭裡，瀏覽器不會自動帶上，所以沒有 CSRF，但 XSS 偷得走；cookie 是 HttpOnly 的，XSS 偷不走，但瀏覽器會自動帶上，要靠 SameSite 和 antiforgery（就是 CSRF token）防範。
+- cookie 只能防止 token 被偷走，XSS 還是能在頁面開著時冒用身分，所以 XSS 本身也要防：Vue 的 `{{ }}` 會跳脫，不用 `v-html` 顯示使用者輸入的內容。
+- 不一定需要獨立的 BFF 服務：API 只服務自己的前端時，API 本身就能發 cookie；API 同時服務手機 App、其他系統時，才需要獨立的 BFF 把 cookie 換成 token。
+
+---
+
+### 37. 前端的登入狀態和導頁怎麼設計？遇過什麼問題？
+
+**30 秒版本**
+登入狀態放在一個 composable 的「檔案層級」變數裡，整個 app 共用一份。換頁時由 router 的 `beforeEach` 檢查：沒登入就導到登入頁並帶上 `redirect`；重新整理後由它呼叫 `/api/me` 取回身分，token 過期就在顯示頁面之前導走。停在同一頁、狀態改變時（按登出、操作途中 token 過期），由 `App.vue` 監看登入狀態導頁。`apiFetch` 收到 401 只負責登出。
+
+**展開**
+- 一開始讓 `apiFetch` 收到 401 就導頁，結果在 `beforeEach` 裡呼叫 `router.push` 會開始另一次換頁，原本的被取消，`redirect` 帶的是「換頁之前」的頁面。改成職責分開：呼叫 API 的不負責導頁，誰知道使用者要去哪，誰就負責導頁。
+- `useRouter()` 底層是 `inject()`，只能在元件的 setup 期間呼叫；在 `apiFetch` 裡呼叫只會拿到 `undefined`。我寫了一段程式實際確認，改成直接 import router 的實例。
+- `isLoggedIn` 看 token 不看 `me`：token 從 `sessionStorage` 同步讀出，`me` 要等 API。用 `me` 判斷的話，重新整理後在 API 回應之前都是「沒登入」。
+- `!isLoggedIn` 少了 `.value` 永遠是 `false`，沒登入也會放行。TypeScript 和 ESLint 都沒抓到（ESLint 的規則認不出從函式解構出來的 ref），只有實際操作才發現。
+- 登入後的 `redirect` 只接受站內路徑（`/` 開頭、不是 `//`），防止 Open Redirect：攻擊者用真的政府網域加上 `?redirect=假網站` 釣魚。
+
+**證據**：`useAuth.ts`、`router/index.ts`、`App.vue`、`LoginView.vue`；瀏覽器驗證：無效的 token 打開 `/my/cases/new`，被導到 `/login?redirect=/my/cases/new`。
+
+---
+
+### 38. 前端怎麼處理 API 的錯誤？
+
+**30 秒版本**
+所有 API 呼叫經過一個 `apiFetch`：失敗一律拋出 `ApiError`，保留狀態碼和 ProblemDetails。表單收到 400 時，用 `errors` 的 key（C# 的屬性路徑，例如 `Petitioner.Name`）把錯誤顯示在對應的欄位旁邊；Domain 的錯誤沒有 `errors`，顯示 `detail`；框架預設的英文 title 不顯示給民眾。
+
+**展開**
+- 用 `===` 比對 `Content-Type` 永遠不成立：Controller 回的是 `application/problem+json; charset=utf-8`。啟動後端實際確認後改用 `startsWith`。
+- 送 JSON 沒設 `Content-Type`，`fetch` 預設 `text/plain`，ASP.NET Core 回 415。
+- 204 沒有內容，`response.json()` 會拋例外，所以直接回傳；呼叫端寫 `apiFetch<void>`。
+- `apiFetch<T>` 的 T 只是呼叫端的承諾：TypeScript 的型別在執行時被擦掉了。要保證型別有兩個不同的問題：型別定義跟後端不一致，用 OpenAPI（Swagger）自動產生型別；執行時收到的資料不對，用 Zod。後端是自己寫的、API 測試已經用嚴格的設定讀回應，前者比較重要。
+- 網址少了開頭的 `/`，在 `/my/cases/123` 頁面上會變成 `/my/cases/api/...`，不經過 proxy，Vite 回傳 `index.html`（200），錯誤訊息是 `Unexpected token '<'`，完全看不出原因。
+
+**證據**：`api/client.ts`、`api/myCases.ts`、`SubmitCaseView.vue`。
+
+---
+
+### 39. 表單怎麼防止重複送出？
+
+**30 秒版本**
+兩層：送出函式第一行檢查「送出中」就直接返回，按鈕再用 `disabled` 讓使用者看得出不能按。只停用按鈕不夠，Vue 要等下一輪才更新畫面，在那之前的點擊還是會觸發。而且按鈕只能綁表單的 `submit`，不能再綁 `click`。
+
+**展開**
+- 實際重現過：`type="submit"` 的按鈕同時綁了 `@click`，點擊會觸發按鈕的 click 和表單的 submit，一次點擊就建立了兩件案件。修好後連點兩下也只有一件。
+- 前端的防護擋不住重新整理後再送、網路逾時重試這些情況。真正的保證要在後端：請求帶一個冪等性的鍵（Idempotency-Key），後端記錄已處理過的鍵。目前沒做，是之後可以加強的地方。
+
+**證據**：`SubmitCaseView.vue`；反向驗證：放回原本的寫法，點一次建立兩件。
+
+---
+
+### 40. 列表的分頁狀態放在哪裡？
+
+**30 秒版本**
+放在網址上（`?page=2`），而且網址是唯一的來源：頁碼用 `computed` 從網址算出來，換頁只改網址，再由 `watch` 重新載入。這樣重新整理、瀏覽器的上一頁、分享網址都會停在同一頁。
+
+**展開**
+- 一開始另外存了一份 `ref`，按瀏覽器的上一頁時，網址變了，列表卻沒變：只換查詢字串時 Vue Router 會重複使用元件，`onMounted` 不會再執行，`ref` 一直是舊的頁碼。這跟 token 存兩份是同一個教訓：同一份資料只存一個地方，其他的用算的。
+- 網址是使用者能改的輸入：`?page=abc`、`0`、負數、重複的參數都改用預設值，不然送出 `?page=NaN`，後端回 400；超過最後一頁時用 `router.replace` 換到最後一頁，不在瀏覽紀錄留下不存在的頁碼。
+
+**證據**：`MyCaseListView.vue`、`utils/query.ts`；瀏覽器驗證：下一頁 → 上一頁回到第 1 頁、`?page=99` 換到最後一頁。
+
+---
+
+### 41. 前端畫面還注意了哪些資安和無障礙的細節？
+
+**30 秒版本**
+使用者輸入的內容一律用 `{{ }}` 輸出，換行用 CSS 的 `white-space: pre-wrap` 保留，不把換行換成 `<br>` 再用 `v-html`，那樣會讓民眾輸入的 HTML 在承辦人的畫面上被執行。我實際送了一段 `<img onerror>`，畫面上顯示成文字，沒有被執行。表單每個欄位都有 `label`，錯誤用 `aria-invalid`、`aria-describedby` 跟欄位連起來，政府網站的無障礙檢測會看這些。
+
+**展開**
+- 單筆資料的詳情用 `<dl>` 不用表格：螢幕報讀會念成「主旨：…」，也不會有欄位對不齊的問題。
+- 狀態的中文名稱用 `Record<CaseStatus, string>`：後端新增狀態、前端型別跟著加上之後，這裡沒補就編譯失敗。
+- 日期用 `Intl.DateTimeFormat` 指定 `Asia/Taipei`：不指定就用使用者電腦的時區，UTC 的晚上在台灣已經是隔天。而且每個欄位都要列出來，只寫 `hour12` 的話預設只顯示日期。
+- 補件後重新載入，不在前端自己改狀態：狀態轉換是後端 Domain 的規則，前端改等於再寫一次。
+- 一個只有實際操作才發現的 bug：409 的提示放在補件表單裡，重新載入後狀態不是「補件中」，整個表單被隱藏，提示也跟著消失。改放到表單外面。
+
+**證據**：`MyCaseDetailView.vue`、`SubmitCaseView.vue`、`utils/caseStatus.ts`、`utils/format.ts`。
