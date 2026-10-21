@@ -3,7 +3,18 @@
 // Guid、DateTimeOffset 在 JSON 裡都是字串
 
 // 狀態用名稱輸出（後端的 JsonStringEnumConverter）
-export type CaseStatus = 'Submitted' | 'UnderReview' | 'AwaitingSupplement' | 'Closed' | 'Rejected'
+export const CASE_STATUSES = [
+  'Submitted',
+  'UnderReview',
+  'AwaitingSupplement',
+  'Closed',
+  'Rejected',
+] as const
+export type CaseStatus = (typeof CASE_STATUSES)[number]
+
+export function isCaseStatus(value: unknown): value is CaseStatus {
+  return typeof value === 'string' && (CASE_STATUSES as readonly string[]).includes(value)
+}
 
 export enum Roles {
   CaseOfficer = 'CaseOfficer',

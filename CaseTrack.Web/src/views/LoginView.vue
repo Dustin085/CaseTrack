@@ -6,7 +6,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 const errorMessage = ref<string | null>(null)
 // 時段 3：選擇測試帳號 → POST /dev/token → 保存 token → 導向「我的案件」
-const { login } = useAuth()
+const { login, homePath } = useAuth()
 const router = useRouter()
 const route = useRoute()
 
@@ -45,7 +45,8 @@ function redirectTarget(): string {
   if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
     return redirect
   }
-  return '/my/cases'
+  // 沒有指定要去哪：依角色決定首頁（登入完成後 me 已經有值）
+  return homePath.value
 }
 
 // 要 async/await：login() 回傳 Promise，不等它的話，

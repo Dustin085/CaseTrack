@@ -1,5 +1,5 @@
 import { apiFetch } from '@/api/client'
-import type { DevTokenRequest, DevTokenResponse, Me } from '@/api/types'
+import { Roles, type DevTokenRequest, type DevTokenResponse, type Me } from '@/api/types'
 import { computed, readonly, ref } from 'vue'
 
 // token 存在 sessionStorage：重新整理後還在（開發時不用一直重新登入），關掉分頁就清掉；
@@ -67,9 +67,21 @@ async function login(request: DevTokenRequest) {
 // 用 me 判斷的話，重新整理後在 /api/me 回應之前都會被當成沒登入
 const isLoggedIn = computed(() => token.value !== null)
 
+// 依角色決定畫面（選單、登入後的首頁）。只是使用者體驗：真正的權限在後端，
+// 民眾打開 /cases、承辦人打開 /my/cases，後端都會回 403
+const isCitizen = computed(() => me.value?.roles.includes(Roles.Citizen) ?? false)
+const isStaff = computed(
+  () =>
+    me.value?.roles.some((r) =>
+      [Roles.CaseOfficer, Roles.Supervisor, Roles.Dispatcher].includes(r as Roles),
+    ) ?? false,
+)
+// 登入後的首頁：承辦端優先（承辦人自己也陳情時，平常主要的工作在承辦端）
+const homePath = computed(() => (isStaff.value ? '/cases' : '/my/cases'))
+
 export function useAuth() {
   // readonly：狀態只能透過 login、logout 修改，元件改 me.value 時 TypeScript 會報錯
-  return { me: readonly(me), isLoggedIn, login, logout, loadMe }
+  return { me: readonly(me), isLoggedIn, isCitizen, isStaff, homePath, login, logout, loadMe }
 }
 
 // 給 apiFetch 用：每次呼叫 API 時讀取目前的 token。

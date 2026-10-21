@@ -3,7 +3,7 @@ import { watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 
-const { me, isLoggedIn, logout } = useAuth()
+const { me, isLoggedIn, isCitizen, isStaff, logout } = useAuth()
 const router = useRouter()
 const route = useRoute()
 
@@ -20,9 +20,13 @@ watch(isLoggedIn, (loggedIn) => {
 <template>
   <header>
     <strong>CaseTrack 陳情案件系統</strong>
+    <!-- 依角色顯示選單（只是使用者體驗，權限在後端）。重新整理後 me 還沒回來前不顯示 -->
     <nav v-if="isLoggedIn">
-      <RouterLink to="/my/cases">我的案件</RouterLink>
-      <RouterLink to="/my/cases/new">我要陳情</RouterLink>
+      <RouterLink v-if="isStaff" to="/cases">案件列表</RouterLink>
+      <template v-if="isCitizen">
+        <RouterLink to="/my/cases">我的案件</RouterLink>
+        <RouterLink to="/my/cases/new">我要陳情</RouterLink>
+      </template>
     </nav>
     <div class="user">
       <template v-if="isLoggedIn">

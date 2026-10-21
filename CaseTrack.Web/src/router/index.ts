@@ -6,7 +6,9 @@ import { useAuth } from '@/composables/useAuth'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/', redirect: '/my/cases' },
+    // 首頁依角色導向（承辦端 /cases、民眾 /my/cases），由 beforeEach 處理：
+    // 這裡不能寫死 redirect，要先知道登入的是誰（重新整理後要等 loadMe）。component 不會被顯示
+    { path: '/', name: 'home', component: { render: () => null } },
     { path: '/login', name: 'login', component: LoginView },
     {
       path: '/my/cases',
@@ -24,6 +26,11 @@ const router = createRouter({
       name: 'my-case-detail',
       component: () => import('@/views/my/MyCaseDetailView.vue'),
       props: true,
+    },
+    {
+      path: '/cases',
+      name: 'cases',
+      component: () => import('@/views/cases/CaseListView.vue'),
     },
   ],
 })
@@ -51,6 +58,10 @@ router.beforeEach(async (to) => {
   } catch {
     // 401：apiFetch 已經登出了；其他錯誤（例如後端沒啟動）：到登入頁重新登入時，會在畫面上顯示錯誤
     return toLogin
+  }
+
+  if (to.name === 'home') {
+    return useAuth().homePath.value
   }
 })
 
