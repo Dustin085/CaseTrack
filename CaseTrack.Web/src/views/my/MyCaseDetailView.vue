@@ -2,6 +2,7 @@
 import { ApiError } from '@/api/client'
 import { getMyCase, submitSupplement } from '@/api/myCases'
 import type { CitizenCaseDetails } from '@/api/types'
+import SupplementHistory from '@/components/SupplementHistory.vue'
 import { caseStatusLabels } from '@/utils/caseStatus'
 import { formatDateTime } from '@/utils/format'
 import { computed, ref, watch } from 'vue'
@@ -171,25 +172,7 @@ function orNotProvided(value: string | null): string {
     <p v-if="supplementSuccess" role="status">已送出補件，承辦人會繼續處理。</p>
     <p v-if="supplementConflict" class="error" role="alert">{{ supplementConflict }}</p>
 
-    <section v-if="caseDetail.supplementRequests.length > 0">
-      <h2>補件紀錄</h2>
-      <ol class="supplements">
-        <li v-for="request in caseDetail.supplementRequests" :key="request.sequence">
-          <dl>
-            <dt>要求時間</dt>
-            <dd>{{ formatDateTime(request.requestedAt) }}</dd>
-            <dt>要求原因</dt>
-            <dd class="multiline">{{ request.reason }}</dd>
-            <dt>補件時間</dt>
-            <dd>{{ request.submittedAt ? formatDateTime(request.submittedAt) : '尚未補件' }}</dd>
-            <template v-if="request.submittedContent">
-              <dt>補件說明</dt>
-              <dd class="multiline">{{ request.submittedContent }}</dd>
-            </template>
-          </dl>
-        </li>
-      </ol>
-    </section>
+    <SupplementHistory :requests="caseDetail.supplementRequests" />
 
     <section>
       <h2>陳情人資料</h2>
@@ -238,11 +221,6 @@ dd {
 .supplement-form button {
   justify-self: start;
   padding: 0.5rem 1.5rem;
-}
-.supplements {
-  display: grid;
-  gap: 1rem;
-  padding-left: 1.5rem;
 }
 .error {
   color: #c00;

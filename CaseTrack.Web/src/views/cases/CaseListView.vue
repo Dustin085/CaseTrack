@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { listCases, listDepartments } from '@/api/cases'
+import { listCases } from '@/api/cases'
 import { CASE_STATUSES, isCaseStatus, type CaseSummary, type PagedResult } from '@/api/types'
+import { useDepartments } from '@/composables/useDepartments'
 import { caseStatusLabels } from '@/utils/caseStatus'
 import { formatDateTime } from '@/utils/format'
 import { parsePositiveInt } from '@/utils/query'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 // 承辦端的案件列表。看得到哪些案件由後端決定（承辦人、主管只有本單位，分派人員全部），前端不再過濾。
@@ -39,26 +40,8 @@ const totalPages = computed(() =>
 const hasPreviousPage = computed(() => page.value > 1)
 const hasNextPage = computed(() => page.value < totalPages.value)
 
-// 單位名稱：列表只有 departmentId。進入頁面時載入一次，轉成 Map（Id → 名稱），
-// 每一筆查詢都是常數時間，不用每次在陣列裡 find
-const departmentNames = ref(new Map<string, string>())
-
-onMounted(async () => {
-  try {
-    const departments = await listDepartments()
-    departmentNames.value = new Map(departments.map((d) => [d.id, d.name]))
-  } catch {
-    // 單位名稱只是輔助資訊：載入失敗時退回顯示「—」，不影響列表本身
-  }
-})
-
-function departmentName(departmentId: string | null): string {
-  // 還沒分派：分派人員最需要看到這個資訊
-  if (departmentId === null) {
-    return '未分派'
-  }
-  return departmentNames.value.get(departmentId) ?? '—'
-}
+// 單位名稱：列表只有 departmentId，由共用的 useDepartments 對照
+const { departmentName } = useDepartments()
 
 async function load() {
   loading.value = true
@@ -115,8 +98,11 @@ watch([page, status], load, { immediate: true })
       </thead>
       <tbody>
         <tr v-for="item in result.items" :key="item.id">
-          <!-- 承辦端的詳情頁還沒做，先不加連結（連到民眾的詳情頁會 403） -->
-          <td>{{ item.caseNumber }}</td>
+          <td>
+            <RouterLink :to="{ name: 'case-detail', params: { id: item.id } }">
+              {{ item.caseNumber }}
+            </RouterLink>
+          </td>
           <td>{{ item.subject }}</td>
           <td>{{ caseStatusLabels[item.status] }}</td>
           <td>{{ departmentName(item.departmentId) }}</td>
