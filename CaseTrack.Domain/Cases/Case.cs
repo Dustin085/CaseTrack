@@ -17,6 +17,19 @@ public class Case
     public string SubmittedBy { get; private set; }   // 送件民眾的使用者 Id（token 的 sub）
     public DateTimeOffset SubmittedAt { get; private set; }
 
+    // 每個動作在目前的狀態下能不能做。
+    // 動作本身和 allowedActions 都讀這裡，規則只寫一次；一致性測試保證兩者不會不同步
+    private bool IsAwaitingReview => Status == CaseStatus.Submitted;
+    public bool CanStartReview => IsAwaitingReview && DepartmentId is not null;
+    public bool CanRequestSupplement => Status == CaseStatus.UnderReview;
+    public bool CanClose => Status == CaseStatus.UnderReview;
+    public bool CanReject => Status is CaseStatus.Submitted
+        or CaseStatus.UnderReview
+        or CaseStatus.AwaitingSupplement;
+    public bool CanDismiss => Status == CaseStatus.Submitted;
+    public bool CanSubmitSupplement => Status == CaseStatus.AwaitingSupplement;
+    public bool CanAssign => Status == CaseStatus.Submitted;
+
     // 案件編號（每日流水號）需要查資料庫才能保證不重複，由外部產生後傳入。
     // 送件時間也由外部傳入（Handler 用 TimeProvider），Domain 不自己取時間
     public Case(string caseNumber, string subject, string content, Petitioner petitioner,
@@ -49,7 +62,10 @@ public class Case
 
     public void StartReview()
     {
-        EnsureCanTransition(CaseStatus.UnderReview, CaseStatus.Submitted);
+        if (!IsAwaitingReview)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.UnderReview);
+        }
         if (DepartmentId is null)
         {
             throw new CaseNotAssignedException();
@@ -60,7 +76,10 @@ public class Case
     public void RequestSupplement(string reason, DateTimeOffset requestedAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        EnsureCanTransition(CaseStatus.AwaitingSupplement, CaseStatus.UnderReview);
+        if (!CanRequestSupplement)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.AwaitingSupplement);
+        }
 
         var supplementRequest = new SupplementRequest(_supplementRequests.Count + 1, reason, requestedAt);
         _supplementRequests.Add(supplementRequest);
@@ -70,7 +89,10 @@ public class Case
 
     public void SubmitSupplement(string content, DateTimeOffset submittedAt)
     {
-        EnsureCanTransition(CaseStatus.UnderReview, CaseStatus.AwaitingSupplement);
+        if (!CanSubmitSupplement)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.UnderReview);
+        }
 
         _supplementRequests.Single(r => r.SubmittedAt is null).MarkSubmitted(content, submittedAt);
 
@@ -80,7 +102,10 @@ public class Case
     public void Close(string reply)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reply);
-        EnsureCanTransition(CaseStatus.Closed, CaseStatus.UnderReview);
+        if (!CanClose)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.Closed);
+        }
 
         ClosingReply = reply;
         Status = CaseStatus.Closed;
@@ -89,9 +114,10 @@ public class Case
     public void Reject(string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        EnsureCanTransition(
-            CaseStatus.Rejected,
-            CaseStatus.Submitted, CaseStatus.UnderReview, CaseStatus.AwaitingSupplement);
+        if (!CanReject)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.Rejected);
+        }
 
         RejectionReason = reason;
         Status = CaseStatus.Rejected;
@@ -113,7 +139,10 @@ public class Case
     public void Dismiss(string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
-        EnsureCanTransition(CaseStatus.Rejected, CaseStatus.Submitted);
+        if (!CanDismiss)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.Rejected);
+        }
 
         RejectionReason = reason;
         Status = CaseStatus.Rejected;
@@ -136,18 +165,10 @@ public class Case
         {
             throw new ArgumentException("單位 Id 不能是空的", nameof(departmentId));
         }
-        if (Status != CaseStatus.Submitted)
+        if (!CanAssign)
         {
             throw new CaseAssignmentNotAllowedException(Status);
         }
         DepartmentId = departmentId;
-    }
-
-    private void EnsureCanTransition(CaseStatus target, params CaseStatus[] allowedFrom)
-    {
-        if (!allowedFrom.Contains(Status))
-        {
-            throw new InvalidCaseStatusTransitionException(Status, target);
-        }
     }
 }
