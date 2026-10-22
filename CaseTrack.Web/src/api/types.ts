@@ -29,13 +29,16 @@ export const CASE_ACTIONS = [
 ] as const
 export type CaseAction = (typeof CASE_ACTIONS)[number]
 
-export enum Roles {
-  CaseOfficer = 'CaseOfficer',
-  Supervisor = 'Supervisor',
-  Dispatcher = 'Dispatcher',
-  Administrator = 'Administrator',
-  Citizen = 'Citizen',
-}
+// 角色（後端 Application 的 Roles 常數）。不用 TypeScript 的 enum：enum 會編譯成真的物件，
+// 不是「只有型別、執行時消失」的寫法（erasableSyntaxOnly、Node 直接執行 TS 都不支援）
+export const ROLES = [
+  'CaseOfficer',
+  'Supervisor',
+  'Dispatcher',
+  'Administrator',
+  'Citizen',
+] as const
+export type Role = (typeof ROLES)[number]
 
 // ── 身分 ────────────────────────────────────────────────
 
@@ -43,7 +46,7 @@ export enum Roles {
 export interface DevTokenRequest {
   userId: string
   name: string
-  roles: string[]
+  roles: Role[]
   departmentId: string | null
 }
 
@@ -56,6 +59,7 @@ export interface DevTokenResponse {
 export interface Me {
   userId: string
   name: string | null
+  // 用 string[] 不用 Role[]：角色來自 IdP，可能有前端不認識的角色（其他系統的），不能假設只有這幾種
   roles: string[]
   departmentId: string | null
 }

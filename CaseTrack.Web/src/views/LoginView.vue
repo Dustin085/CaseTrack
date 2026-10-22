@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Roles, type DevTokenRequest } from '@/api/types'
+import type { DevTokenRequest } from '@/api/types'
 import { useAuth } from '@/composables/useAuth'
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -14,25 +14,25 @@ const requests: DevTokenRequest[] = [
   {
     userId: '7f3a2c91-8d64-4b0e-a521-6c9f2e71d843',
     name: '民眾A',
-    roles: [Roles.Citizen],
+    roles: ['Citizen'],
     departmentId: null,
   },
   {
     userId: 'b2e8d415-6a73-49cf-8d20-f1a6c3e95704',
     name: '民眾B',
-    roles: [Roles.Citizen],
+    roles: ['Citizen'],
     departmentId: null,
   },
   {
     userId: 'c91f6a28-3e45-47b2-a8d1-5f0c9e624713',
     name: '工務局承辦人',
-    roles: [Roles.CaseOfficer],
+    roles: ['CaseOfficer'],
     departmentId: 'f3c0543e-db7c-464b-8016-d71088ef6b83',
   },
   {
     userId: '4d7b1e93-a526-4c80-9f34-2b8e6d1a705c',
     name: '分派人員',
-    roles: [Roles.Dispatcher],
+    roles: ['Dispatcher'],
     departmentId: null,
   },
 ]
