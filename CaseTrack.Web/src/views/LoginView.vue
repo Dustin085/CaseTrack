@@ -5,7 +5,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const errorMessage = ref<string | null>(null)
-// 時段 3：選擇測試帳號 → POST /dev/token → 保存 token → 導向「我的案件」
+// 開發用的登入頁：選擇測試帳號，向 /dev/token 取得 token。正式環境換成 IdP（AD、單一登入）的登入畫面
 const { login, homePath } = useAuth()
 const router = useRouter()
 const route = useRoute()
@@ -63,9 +63,33 @@ const handleLogin = async (request: DevTokenRequest) => {
 </script>
 
 <template>
-  <h1>登入</h1>
-  <button v-for="request in requests" :key="request.userId" v-on:click="handleLogin(request)">
-    {{ request.name }}
-  </button>
-  <p v-if="errorMessage">{{ errorMessage }}</p>
+  <section class="card login">
+    <h1>登入</h1>
+    <!-- 開發用：選一個測試帳號，向 /dev/token 取得 token。正式環境換成 IdP 的登入畫面 -->
+    <p class="muted">開發環境：選擇測試帳號登入</p>
+    <div class="accounts">
+      <button
+        v-for="request in requests"
+        :key="request.userId"
+        type="button"
+        @click="handleLogin(request)"
+      >
+        {{ request.name }}
+      </button>
+    </div>
+    <p v-if="errorMessage" class="message error" role="alert">{{ errorMessage }}</p>
+  </section>
 </template>
+
+<style scoped>
+.login {
+  max-width: 480px;
+  margin: 2rem auto 0;
+}
+.accounts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+</style>
