@@ -17,7 +17,9 @@ public sealed record CaseDetails(
     string? RejectionReason,
     string? ClosingReply,
     PetitionerDetails Petitioner,
-    IReadOnlyList<SupplementRequestDetails> SupplementRequests);
+    IReadOnlyList<SupplementRequestDetails> SupplementRequests,
+    // 目前的使用者現在能做哪些動作（見 CaseActions），前端照著顯示按鈕
+    IReadOnlyList<CaseAction> AllowedActions);
 
 public sealed record PetitionerDetails(
     string? Name,
@@ -66,12 +68,12 @@ public sealed class GetCaseHandler
             @case.RejectionReason,
             @case.ClosingReply,
             ToMaskedDetails(@case.Petitioner),
-            supplementRequests);
+            supplementRequests,
+            CaseActions.AllowedFor(@case, _currentUser));
     }
 
-    // 目前還沒有登入功能，所以一律遮罩（比較安全的預設值）。
-    // 加上授權之後要改成依照查看的人決定：承辦人、單位主管看完整資料（並寫入個資查詢紀錄），其他人看遮罩後的值。
-    // 這是業務規則加上授權，所以放在 Application，不放在 Controller。
+    // 一律遮罩：大部分時候只需要看陳情內容。承辦人、主管需要聯絡民眾時，另外呼叫 GET /api/cases/{id}/petitioner
+    // 取得完整資料，每次都會留下個資查詢紀錄（GetPetitionerHandler）
     private static PetitionerDetails ToMaskedDetails(Petitioner petitioner) =>
         new(
             PersonalDataMasker.Mask(petitioner.Name),

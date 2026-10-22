@@ -73,9 +73,9 @@ builder.Services
 
 // 授權的第 1 層：角色。管理者不在任何一個 policy 裡（最小權限），呼叫案件的端點都是 403
 builder.Services.AddAuthorizationBuilder()
-    .AddPolicy(Policies.CaseReader, policy => policy.RequireRole(Roles.CaseOfficer, Roles.Supervisor, Roles.Dispatcher))
-    .AddPolicy(Policies.CaseHandler, policy => policy.RequireRole(Roles.CaseOfficer, Roles.Supervisor))
-    .AddPolicy(Policies.CaseDispatcher, policy => policy.RequireRole(Roles.Dispatcher))
+    .AddPolicy(Policies.CaseReader, policy => policy.RequireRole(Roles.CaseReaders))
+    .AddPolicy(Policies.CaseHandler, policy => policy.RequireRole(Roles.CaseHandlers))
+    .AddPolicy(Policies.CaseDispatcher, policy => policy.RequireRole(Roles.CaseDispatchers))
     .AddPolicy(Policies.Citizen, policy => policy.RequireRole(Roles.Citizen));
 
 builder.Services.AddProblemDetails();

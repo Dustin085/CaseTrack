@@ -61,7 +61,7 @@ public sealed record CaseAccessScope
 
         // 承辦人、單位主管只能看本單位的案件。
         // 沒有單位是 IdP 的設定錯誤：往安全的那一邊錯，什麼都看不到，而不是全部都看得到
-        if (user.Roles.Contains(Roles.CaseOfficer) || user.Roles.Contains(Roles.Supervisor))
+        if (user.Roles.Overlaps(Roles.CaseHandlers))
         {
             return user.DepartmentId is { } departmentId ? ForDepartment(departmentId) : None;
         }
