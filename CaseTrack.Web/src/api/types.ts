@@ -16,6 +16,19 @@ export function isCaseStatus(value: unknown): value is CaseStatus {
   return typeof value === 'string' && (CASE_STATUSES as readonly string[]).includes(value)
 }
 
+// 承辦端可以做的動作（後端的 CaseAction enum，用名稱輸出）。GET /api/cases/{id} 的 allowedActions
+// 列出目前的使用者「現在」能做哪些，前端照著顯示按鈕，不自己判斷角色和狀態
+export const CASE_ACTIONS = [
+  'Review',
+  'RequestSupplement',
+  'Close',
+  'Reject',
+  'ViewPetitioner',
+  'Assign',
+  'Dismiss',
+] as const
+export type CaseAction = (typeof CASE_ACTIONS)[number]
+
 export enum Roles {
   CaseOfficer = 'CaseOfficer',
   Supervisor = 'Supervisor',
@@ -52,6 +65,24 @@ export interface Department {
   id: string
   code: string
   name: string
+}
+
+// ── 承辦端 /api/cases ─────────────────────────────────
+
+// GET /api/cases/{id}：承辦端看到的案件。陳情人一律遮罩，完整資料另外呼叫 /petitioner（會留下查詢紀錄）
+export interface CaseDetails {
+  id: string
+  caseNumber: string
+  subject: string
+  content: string
+  status: CaseStatus
+  submittedAt: string
+  rejectionReason: string | null
+  closingReply: string | null
+  petitioner: PetitionerDetails // 遮罩過的（王*明）
+  supplementRequests: SupplementRequestDetails[]
+  departmentId: string | null
+  allowedActions: CaseAction[]
 }
 
 // ── 民眾端 /api/my/cases ─────────────────────────────────
