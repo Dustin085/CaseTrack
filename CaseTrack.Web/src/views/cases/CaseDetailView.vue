@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { ApiError } from '@/api/client'
-import { closeCase, getCase, rejectCase, requestSupplement, reviewCase } from '@/api/cases'
+import {
+  assignCase,
+  closeCase,
+  dismissCase,
+  getCase,
+  rejectCase,
+  requestSupplement,
+  reviewCase,
+} from '@/api/cases'
 import type { CaseAction, CaseDetails } from '@/api/types'
 import ActionWithReason from '@/components/ActionWithReason.vue'
 import SupplementHistory from '@/components/SupplementHistory.vue'
@@ -13,7 +21,7 @@ import { ref, watch } from 'vue'
 // 能做哪些動作由後端的 allowedActions 決定，前端不自己判斷角色和狀態
 const props = defineProps<{ id: string }>()
 
-const { departmentName } = useDepartments()
+const { departments, departmentName } = useDepartments()
 
 const caseDetail = ref<CaseDetails | null>(null)
 const loading = ref(false)
@@ -102,6 +110,30 @@ async function handleReview() {
     actionNotice.value = e instanceof Error ? e.message : '受理時發生錯誤'
   } finally {
     reviewing.value = false
+  }
+}
+
+// 分派（分派人員）：選單位、送出。只有這裡用到，所以直接寫在頁面裡，不另外抽成元件。
+// 已送件的案件可以改派：預設選目前的單位，改派時不用重新找
+const selectedDepartmentId = ref('')
+const assigning = ref(false)
+watch(caseDetail, (detail) => {
+  selectedDepartmentId.value = detail?.departmentId ?? ''
+})
+
+async function handleAssign() {
+  // 還沒選單位就不能送出（按鈕也是停用的，這裡再擋一次）
+  if (assigning.value || selectedDepartmentId.value === '') {
+    return
+  }
+  assigning.value = true
+  try {
+    const name = departmentName(selectedDepartmentId.value)
+    await perform(() => assignCase(props.id, selectedDepartmentId.value), `已分派到${name}`)
+  } catch (e) {
+    actionNotice.value = e instanceof Error ? e.message : '分派時發生錯誤'
+  } finally {
+    assigning.value = false
   }
 }
 </script>
@@ -194,6 +226,24 @@ async function handleReview() {
           :maxlength="500"
           :submit="(reason: string) => perform(() => rejectCase(id, reason), '已退件')"
         />
+
+        <form v-if="can('Assign')" class="assign" @submit.prevent="handleAssign">
+          <label for="assign-department">分派到</label>
+          <select id="assign-department" v-model="selectedDepartmentId">
+            <option value="" disabled>請選擇單位</option>
+            <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
+          </select>
+          <button type="submit" :disabled="assigning || selectedDepartmentId === ''">
+            {{ assigning ? '分派中…' : caseDetail.departmentId ? '改派' : '分派' }}
+          </button>
+        </form>
+        <ActionWithReason
+          v-if="can('Dismiss')"
+          label="不予受理"
+          field-label="不予受理原因（民眾會看到）"
+          :maxlength="500"
+          :submit="(reason: string) => perform(() => dismissCase(id, reason), '已不予受理')"
+        />
       </div>
     </section>
   </template>
@@ -222,6 +272,11 @@ dd {
   display: grid;
   gap: 1rem;
   justify-items: start;
+}
+.assign {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 .error {
   color: #c00;
