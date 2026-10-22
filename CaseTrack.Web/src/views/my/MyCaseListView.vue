@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { listMyCases } from '@/api/myCases'
 import type { CaseSummary, PagedResult } from '@/api/types'
-import { caseStatusLabels } from '@/utils/caseStatus'
+import StatusBadge from '@/components/StatusBadge.vue'
 import { formatDateTime } from '@/utils/format'
 import { parsePositiveInt } from '@/utils/query'
 import { computed, ref, watch } from 'vue'
@@ -85,7 +85,7 @@ watch(page, load, { immediate: true })
             </RouterLink>
           </td>
           <td>{{ item.subject }}</td>
-          <td>{{ caseStatusLabels[item.status] }}</td>
+          <td><StatusBadge :status="item.status" /></td>
           <td>{{ formatDateTime(item.submittedAt) }}</td>
         </tr>
       </tbody>
@@ -100,16 +100,6 @@ watch(page, load, { immediate: true })
 </template>
 
 <style scoped>
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-th,
-td {
-  padding: 0.5rem;
-  border-bottom: 1px solid #ddd;
-  text-align: left;
-}
 .pager {
   display: flex;
   gap: 1rem;

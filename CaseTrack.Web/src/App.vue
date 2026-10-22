@@ -45,23 +45,42 @@ watch(isLoggedIn, (loggedIn) => {
 <style scoped>
 header {
   display: flex;
-  gap: 1.5rem;
+  gap: 2rem;
   align-items: center;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #ddd;
+  padding: 0.75rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: var(--shadow);
+}
+header strong {
+  font-size: 1.1rem;
+  color: var(--color-primary);
 }
 nav {
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
+}
+nav a {
+  color: var(--color-text);
+  text-decoration: none;
+  padding: 0.25rem 0;
+  border-bottom: 2px solid transparent;
+}
+/* 目前所在的頁面（Vue Router 會自動加上這個 class） */
+nav a.router-link-active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
 }
 .user {
   display: flex;
   gap: 0.75rem;
   align-items: center;
   margin-left: auto;
+  color: var(--color-muted);
 }
 main {
-  padding: 1rem;
+  padding: 1.5rem;
   max-width: 960px;
+  margin: 0 auto;
 }
 </style>

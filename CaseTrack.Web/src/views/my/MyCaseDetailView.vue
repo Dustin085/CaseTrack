@@ -2,8 +2,8 @@
 import { ApiError } from '@/api/client'
 import { getMyCase, submitSupplement } from '@/api/myCases'
 import type { CitizenCaseDetails } from '@/api/types'
+import StatusBadge from '@/components/StatusBadge.vue'
 import SupplementHistory from '@/components/SupplementHistory.vue'
-import { caseStatusLabels } from '@/utils/caseStatus'
 import { formatDateTime } from '@/utils/format'
 import { computed, ref, watch } from 'vue'
 
@@ -122,7 +122,7 @@ function orNotProvided(value: string | null): string {
         <dt>案件編號</dt>
         <dd>{{ caseDetail.caseNumber }}</dd>
         <dt>狀態</dt>
-        <dd>{{ caseStatusLabels[caseDetail.status] }}</dd>
+        <dd><StatusBadge :status="caseDetail.status" /></dd>
         <dt>送件時間</dt>
         <dd>{{ formatDateTime(caseDetail.submittedAt) }}</dd>
       </dl>
