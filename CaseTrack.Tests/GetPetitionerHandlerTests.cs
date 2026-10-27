@@ -52,7 +52,7 @@ public class GetPetitionerHandlerTests
     {
         var @case = new Case("20261016-0001", "路燈不亮", "中山路路燈故障",
             new Petitioner("王小明", "0912345678", null, null),
-            "u-citizen-1", DateTimeOffset.UtcNow);
+            "u-citizen-1", DateTimeOffset.UtcNow, []);
         @case.AssignTo(DepartmentId);
         return @case;
     }

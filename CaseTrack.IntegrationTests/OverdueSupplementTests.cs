@@ -28,7 +28,7 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：在一個 scope 裡建立「15 天前要求補件」的案件
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
@@ -55,7 +55,7 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：在一個 scope 裡建立「13 天前要求補件」的案件
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline + TimeSpan.FromDays(1));
@@ -81,7 +81,7 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：在一個 scope 裡建立「15 天前要求補件」的案件
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
@@ -116,11 +116,11 @@ public class OverdueSupplementTests
         await using var provider = CreateProvider(Now);
 
         // Arrange：15 天前要求補件，但民眾昨天已經補件了（回到審核中）
-        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "Test Subject.", "Test Content.", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("Test Request.", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
-        @case.SubmitSupplement("補上現場照片說明", Now - TimeSpan.FromDays(1));
+        @case.SubmitSupplement("補上現場照片說明", Now - TimeSpan.FromDays(1), []);
         await using (var writeScope = provider.CreateAsyncScope())
         {
             writeScope.ServiceProvider.GetRequiredService<ICaseRepository>().Add(@case);
@@ -151,12 +151,12 @@ public class OverdueSupplementTests
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var provider = CreateProvider(Now);
 
-        var overdueCase = new Case(NewCaseNumber(), "Overdue Case", "Overdue case content", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var overdueCase = new Case(NewCaseNumber(), "Overdue Case", "Overdue case content", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         overdueCase.AssignTo(TestData.DepartmentId);
         overdueCase.StartReview();
         overdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline - TimeSpan.FromDays(1));
 
-        var notOverdueCase = new Case(NewCaseNumber(), "Nonoverdue Case", "Nonoverdue case content", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var notOverdueCase = new Case(NewCaseNumber(), "Nonoverdue Case", "Nonoverdue case content", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         notOverdueCase.AssignTo(TestData.DepartmentId);
         notOverdueCase.StartReview();
         notOverdueCase.RequestSupplement("Need more info", Now - Case.SupplementDeadline + TimeSpan.FromDays(1));

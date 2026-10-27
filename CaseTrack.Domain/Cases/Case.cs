@@ -4,6 +4,7 @@ public class Case
 {
     public static readonly TimeSpan SupplementDeadline = TimeSpan.FromDays(14);
     private readonly List<SupplementRequest> _supplementRequests = new();
+    private readonly List<Attachment> _attachments = new();
     public Guid Id { get; private set; } = Guid.NewGuid();
     public string CaseNumber { get; private set; }
     public string Subject { get; private set; }
@@ -11,6 +12,8 @@ public class Case
     public Petitioner Petitioner { get; private set; }
     public CaseStatus Status { get; private set; } = CaseStatus.Submitted;
     public IReadOnlyCollection<SupplementRequest> SupplementRequests => _supplementRequests.AsReadOnly();
+    // 送件與每次補件的附件都在這一個集合（用 SupplementRequestId 區分）：權限的單位是案件，下載時只要查一個地方
+    public IReadOnlyCollection<Attachment> Attachments => _attachments.AsReadOnly();
     public string? RejectionReason { get; private set; }
     public Guid? DepartmentId { get; private set; } // null = 待分派
     public string? ClosingReply { get; private set; } // 結案回覆，還沒結案時是 null
@@ -31,15 +34,17 @@ public class Case
     public bool CanAssign => Status == CaseStatus.Submitted;
 
     // 案件編號（每日流水號）需要查資料庫才能保證不重複，由外部產生後傳入。
-    // 送件時間也由外部傳入（Handler 用 TimeProvider），Domain 不自己取時間
+    // 送件時間也由外部傳入（Handler 用 TimeProvider），Domain 不自己取時間。
+    // 建立後 Attachments 全部都是這次新增的，順序和傳入的 attachments 相同（Application 用它對應要存的檔案）
     public Case(string caseNumber, string subject, string content, Petitioner petitioner,
-        string submittedBy, DateTimeOffset submittedAt)
+        string submittedBy, DateTimeOffset submittedAt, IReadOnlyList<NewAttachment> attachments)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(caseNumber);
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
         ArgumentNullException.ThrowIfNull(petitioner);
         ArgumentException.ThrowIfNullOrWhiteSpace(submittedBy);
+        AttachmentRules.Validate(attachments);
 
         CaseNumber = caseNumber;
         Subject = subject;
@@ -47,6 +52,7 @@ public class Case
         Petitioner = petitioner;
         SubmittedBy = submittedBy;
         SubmittedAt = submittedAt;
+        AddAttachments(null, attachments, submittedAt);
     }
 
     // 給 EF Core 從資料庫讀出時使用：EF 沒辦法把值物件（Petitioner）綁定到建構子參數，
@@ -87,16 +93,34 @@ public class Case
         Status = CaseStatus.AwaitingSupplement;
     }
 
-    public void SubmitSupplement(string content, DateTimeOffset submittedAt)
+    // 回傳這次新增的附件（順序和傳入的相同）：Application 要用它們的 Id 當檔名存檔
+    public IReadOnlyList<Attachment> SubmitSupplement(string content, DateTimeOffset submittedAt,
+        IReadOnlyList<NewAttachment> attachments)
     {
+        // 全部檢查完才開始修改：附件不合法時，補件不能已經被標記成「已補件」（物件停在一半的狀態）
         if (!CanSubmitSupplement)
         {
             throw new InvalidCaseStatusTransitionException(Status, CaseStatus.UnderReview);
         }
+        AttachmentRules.Validate(attachments);
 
-        _supplementRequests.Single(r => r.SubmittedAt is null).MarkSubmitted(content, submittedAt);
+        var pendingRequest = _supplementRequests.Single(r => r.SubmittedAt is null);
+        pendingRequest.MarkSubmitted(content, submittedAt);
+        var added = AddAttachments(pendingRequest.Id, attachments, submittedAt);
 
         Status = CaseStatus.UnderReview;
+        return added;
+    }
+
+    // 呼叫前必須已經用 AttachmentRules.Validate 檢查過
+    private IReadOnlyList<Attachment> AddAttachments(Guid? supplementRequestId,
+        IReadOnlyList<NewAttachment> attachments, DateTimeOffset uploadedAt)
+    {
+        var added = attachments
+            .Select(a => new Attachment(supplementRequestId, a.FileName, a.ContentType, a.Size, uploadedAt))
+            .ToList();
+        _attachments.AddRange(added);
+        return added;
     }
 
     public void Close(string reply)

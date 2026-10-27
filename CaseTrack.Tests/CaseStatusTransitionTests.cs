@@ -29,13 +29,13 @@ public class CaseStatusTransitionTests
     public void Constructor_WithBlankArgument_ThrowsArgumentException(
         string caseNumber, string subject, string content)
     {
-        Assert.ThrowsAny<ArgumentException>(() => new Case(caseNumber, subject, content, Petitioner, SubmittedBy, Now));
+        Assert.ThrowsAny<ArgumentException>(() => new Case(caseNumber, subject, content, Petitioner, SubmittedBy, Now, []));
     }
 
     [Fact]
     public void Constructor_WithNullPetitioner_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => new Case("20261005-0001", "Subject", "Content", null!, SubmittedBy, Now));
+        Assert.Throws<ArgumentNullException>(() => new Case("20261005-0001", "Subject", "Content", null!, SubmittedBy, Now, []));
     }
 
     // 送件人一定要有：民眾要登入才能陳情，案件一定知道是誰送的
@@ -46,7 +46,7 @@ public class CaseStatusTransitionTests
     public void Constructor_WithBlankSubmittedBy_ThrowsArgumentException(string? submittedBy)
     {
         Assert.ThrowsAny<ArgumentException>(
-            () => new Case("20261005-0001", "Subject", "Content", Petitioner, submittedBy!, Now));
+            () => new Case("20261005-0001", "Subject", "Content", Petitioner, submittedBy!, Now, []));
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class CaseStatusTransitionTests
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
 
-        @case.SubmitSupplement("Test Content", Now.AddDays(1));
+        @case.SubmitSupplement("Test Content", Now.AddDays(1), []);
 
         Assert.Equal(CaseStatus.UnderReview, @case.Status);
         var request = Assert.Single(@case.SupplementRequests);
@@ -132,7 +132,7 @@ public class CaseStatusTransitionTests
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
 
-        @case.SubmitSupplement("Test Content", Now);
+        @case.SubmitSupplement("Test Content", Now, []);
 
         Assert.Equal(Now, Assert.Single(@case.SupplementRequests).SubmittedAt);
     }
@@ -143,7 +143,7 @@ public class CaseStatusTransitionTests
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
 
         var exception = Assert.Throws<SubmittedAtBeforeRequestedAtException>(
-            () => @case.SubmitSupplement("Test Content", Now.AddMinutes(-1)));
+            () => @case.SubmitSupplement("Test Content", Now.AddMinutes(-1), []));
 
         Assert.Equal(Now.AddMinutes(-1), exception.SubmittedAt);
         Assert.Equal(Now, exception.RequestedAt);
@@ -155,7 +155,7 @@ public class CaseStatusTransitionTests
     public void RequestSupplement_WhenRequestedAgainAfterSubmission_KeepsAllRequests()
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-        @case.SubmitSupplement("Test Content", Now.AddDays(1));
+        @case.SubmitSupplement("Test Content", Now.AddDays(1), []);
 
         @case.RequestSupplement("Still missing photos.", Now.AddDays(2));
 
@@ -180,10 +180,10 @@ public class CaseStatusTransitionTests
     public void SubmitSupplement_WhenMultipleRequests_MarksLatestOnly()
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-        @case.SubmitSupplement("Test Content", Now.AddDays(1));
+        @case.SubmitSupplement("Test Content", Now.AddDays(1), []);
         @case.RequestSupplement("Still missing photos.", Now.AddDays(2));
 
-        @case.SubmitSupplement("Test Content", Now.AddDays(3));
+        @case.SubmitSupplement("Test Content", Now.AddDays(3), []);
 
         Assert.Collection(@case.SupplementRequests,
             first => Assert.Equal(Now.AddDays(1), first.SubmittedAt),
@@ -239,7 +239,7 @@ public class CaseStatusTransitionTests
     [InlineData(CaseStatus.Rejected)]
     public void SubmitSupplement_FromNonAwaitingSupplement_Throws(CaseStatus from)
     {
-        AssertTransitionFails(from, CaseStatus.UnderReview, c => c.SubmitSupplement("Test Content", Now));
+        AssertTransitionFails(from, CaseStatus.UnderReview, c => c.SubmitSupplement("Test Content", Now, []));
     }
 
     [Theory]
@@ -310,7 +310,7 @@ public class CaseStatusTransitionTests
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
 
-        Assert.ThrowsAny<ArgumentException>(() => @case.SubmitSupplement(content!, Now.AddDays(1)));
+        Assert.ThrowsAny<ArgumentException>(() => @case.SubmitSupplement(content!, Now.AddDays(1), []));
         Assert.Equal(CaseStatus.AwaitingSupplement, @case.Status);
         var request = Assert.Single(@case.SupplementRequests);
         Assert.Null(request.SubmittedAt);
@@ -351,7 +351,7 @@ public class CaseStatusTransitionTests
     public void IsSupplementOverdue_WhenSecondSupplementRequestBeforeDeadline_ReturnsFalse()
     {
         var @case = CreateCaseInStatus(CaseStatus.AwaitingSupplement);
-        @case.SubmitSupplement("Test Content", Now + TimeSpan.FromDays(1));
+        @case.SubmitSupplement("Test Content", Now + TimeSpan.FromDays(1), []);
         @case.RequestSupplement("Still missing photos.", Now + TimeSpan.FromDays(2));
 
         Assert.False(@case.IsSupplementOverdue(Now + TimeSpan.FromDays(15)));
@@ -521,7 +521,7 @@ public class CaseStatusTransitionTests
 
     private static Case CreateTestCase()
     {
-        return new Case("20261005-0001", "Test Subject", "Test Content", Petitioner, SubmittedBy, Now);
+        return new Case("20261005-0001", "Test Subject", "Test Content", Petitioner, SubmittedBy, Now, []);
     }
 
     // 受理之前一定要先分派

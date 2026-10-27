@@ -41,7 +41,7 @@ public class CaseCapabilityConsistencyTests
     {
         ["StartReview"] = (c => c.CanStartReview, c => c.StartReview()),
         ["RequestSupplement"] = (c => c.CanRequestSupplement, c => c.RequestSupplement("請補照片", Now)),
-        ["SubmitSupplement"] = (c => c.CanSubmitSupplement, c => c.SubmitSupplement("已補上照片", Now)),
+        ["SubmitSupplement"] = (c => c.CanSubmitSupplement, c => c.SubmitSupplement("已補上照片", Now, [])),
         ["Close"] = (c => c.CanClose, c => c.Close("已處理")),
         ["Reject"] = (c => c.CanReject, c => c.Reject("非本單位業務")),
         ["Dismiss"] = (c => c.CanDismiss, c => c.Dismiss("不屬本府權責")),
@@ -100,7 +100,7 @@ public class CaseCapabilityConsistencyTests
     // ── Helpers ──────────────────────────────────────────
 
     private static Case NewCase() =>
-        new("20261005-0001", "路燈不亮", "中山路路燈故障", Petitioner, "u-citizen-1", Now);
+        new("20261005-0001", "路燈不亮", "中山路路燈故障", Petitioner, "u-citizen-1", Now, []);
 
     private static Case Assigned(Case @case)
     {

@@ -18,7 +18,7 @@ public class CaseRepositoryTests
     {
         // Arrange：在一個 scope（模擬一個請求）裡新增並存檔
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "瑞光路301號附近", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "瑞光路301號附近", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
@@ -99,7 +99,7 @@ public class CaseRepositoryTests
 
     private static async Task<Guid> SaveCaseAsync(Guid? departmentId)
     {
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         if (departmentId is { } id)
         {
             @case.AssignTo(id);

@@ -43,7 +43,7 @@ public sealed class SubmitCaseHandler
         // 取號是獨立的交易，存檔失敗時這個編號就跳過不用（業務上允許跳號）
         var caseNumber = await _caseNumberGenerator.NextAsync(cancellationToken);
         var @case = new Case(caseNumber, command.Subject, command.Content, petitioner,
-            _currentUser.UserId, _timeProvider.GetUtcNow());
+            _currentUser.UserId, _timeProvider.GetUtcNow(), []);
 
         _caseRepository.Add(@case);
         await _unitOfWork.SaveChangesAsync(cancellationToken);

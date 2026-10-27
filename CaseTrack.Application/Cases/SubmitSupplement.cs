@@ -29,7 +29,7 @@ public sealed class SubmitSupplementHandler
         // 民眾只能補自己的案件，補別人的會 404
         var @case = await _caseRepository.GetByIdAsync(caseId, CaseAccessScope.ForPetitioner(_currentUser.UserId), cancellationToken)
             ?? throw new NotFoundException(nameof(Case), caseId);
-        @case.SubmitSupplement(content, _timeProvider.GetUtcNow());
+        @case.SubmitSupplement(content, _timeProvider.GetUtcNow(), []);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

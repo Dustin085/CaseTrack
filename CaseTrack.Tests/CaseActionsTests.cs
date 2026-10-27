@@ -83,7 +83,7 @@ public class CaseActionsTests
 
     private static Case NewCase() =>
         new("20261005-0001", "路燈不亮", "中山路路燈故障",
-            new Petitioner("王小明", "0912345678", null, null), "u-citizen-1", Now);
+            new Petitioner("王小明", "0912345678", null, null), "u-citizen-1", Now, []);
 
     private static Case Assigned(Case @case)
     {

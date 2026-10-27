@@ -24,11 +24,11 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
-        @case.SubmitSupplement("補上現場照片說明", Now.AddDays(1));
+        @case.SubmitSupplement("補上現場照片說明", Now.AddDays(1), []);
         @case.RequestSupplement("缺地址", Now.AddDays(2));
 
         // Act：用一個 DbContext 寫入
@@ -61,7 +61,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
 
@@ -105,8 +105,8 @@ public class CasePersistenceTests
         // Arrange：第一個案件先成功存進去（模擬先到的請求）
         var cancellationToken = TestContext.Current.CancellationToken;
         var caseNumber = NewCaseNumber();
-        var case1 = new Case(caseNumber, "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
-        var case2 = new Case(caseNumber, "水管破裂", "中山路水管破裂", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var case1 = new Case(caseNumber, "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
+        var case2 = new Case(caseNumber, "水管破裂", "中山路水管破裂", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
 
         await using (var firstContext = _fixture.CreateContext())
         {
@@ -142,11 +142,11 @@ public class CasePersistenceTests
     {
         // Arrange：第 1 次補件已補、第 2 次補件等待中
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
-        @case.SubmitSupplement("補上現場照片說明", Now.AddDays(1));
+        @case.SubmitSupplement("補上現場照片說明", Now.AddDays(1), []);
         @case.RequestSupplement("缺地址", Now.AddDays(2));
 
         await using (var writeContext = _fixture.CreateContext())
@@ -161,7 +161,7 @@ public class CasePersistenceTests
             var loaded = await actContext.Cases
                 .Include(c => c.SupplementRequests)
                 .SingleAsync(c => c.Id == @case.Id, cancellationToken);
-            loaded.SubmitSupplement("補上現場照片說明", Now.AddDays(3));
+            loaded.SubmitSupplement("補上現場照片說明", Now.AddDays(3), []);
             await actContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -181,7 +181,7 @@ public class CasePersistenceTests
     public async Task SaveChanges_WhenConcurrentUpdateOccurs_ThrowsConcurrencyConflict()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         await using (var writeContext = _fixture.CreateContext())
@@ -231,7 +231,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         await using (var writeContext = _fixture.CreateContext())
         {
             writeContext.Cases.Add(@case);
@@ -259,7 +259,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt);
+        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(Guid.NewGuid());
 
         // Act & Assert
