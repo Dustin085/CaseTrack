@@ -32,6 +32,7 @@ internal sealed class CaseRepository : ICaseRepository
 
         return _dbContext.Cases
             .Include(c => c.SupplementRequests)
+            .Include(c => c.Attachments)
             .ApplyScope(scope)
             .Where(c => c.Id == id)
             .SingleOrDefaultAsync(cancellationToken);

@@ -46,6 +46,12 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
             .IsRequired()
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(c => c.Attachments)
+            .WithOne()
+            .HasForeignKey("CaseId")
+            .IsRequired()
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Case 只存單位的 Id（聚合之間只用 Id 參照），但資料庫仍然要保證這個 Id 存在
         builder.HasOne<Department>()
             .WithMany()

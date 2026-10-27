@@ -44,6 +44,57 @@ public class CaseRepositoryTests
         Assert.Null(request.SubmittedAt);
     }
 
+    // 兩件事：① GetByIdAsync 有 Include 附件（漏了不會有任何錯誤，只是附件永遠是空的）
+    // ② 在讀出來的案件上補件並加附件，存得進去：附件的 Id 由 Domain 產生，沒有 ValueGeneratedNever 的話，
+    //    EF 看到已經有 Id，會當成既有的資料送出 UPDATE（更新 0 筆 → 併發例外），而不是 INSERT
+    [Fact]
+    public async Task SubmitSupplement_OnReloadedCase_SavesAttachmentsAndGetByIdIncludesThem()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var @case = new Case(NewCaseNumber(), "路面坑洞", "中山路有坑洞", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt,
+            [new NewAttachment("現場.jpg", "image/jpeg", 2048)]);
+        @case.AssignTo(TestData.DepartmentId);
+        @case.StartReview();
+        @case.RequestSupplement("請補地圖", Now);
+
+        await using (var writeScope = CreateScope())
+        {
+            writeScope.ServiceProvider.GetRequiredService<ICaseRepository>().Add(@case);
+            await writeScope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(cancellationToken);
+        }
+
+        // Act：另一個請求讀出案件、補件並附上檔案
+        Guid supplementAttachmentId;
+        await using (var actScope = CreateScope())
+        {
+            var loaded = await actScope.ServiceProvider.GetRequiredService<ICaseRepository>()
+                .GetByIdAsync(@case.Id, CaseAccessScope.All, cancellationToken);
+            Assert.NotNull(loaded);
+            supplementAttachmentId = loaded.SubmitSupplement("補上地圖", Now.AddDays(1),
+                [new NewAttachment("地圖.pdf", "application/pdf", 4096)]).Single().Id;
+            await actScope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(cancellationToken);
+        }
+
+        // Assert：再用另一個請求讀出，兩個附件都在，欄位都還原
+        await using var readScope = CreateScope();
+        var reloaded = await readScope.ServiceProvider.GetRequiredService<ICaseRepository>()
+            .GetByIdAsync(@case.Id, CaseAccessScope.All, cancellationToken);
+        Assert.NotNull(reloaded);
+        Assert.Equal(2, reloaded.Attachments.Count);
+
+        var original = reloaded.Attachments.Single(a => a.SupplementRequestId is null);
+        Assert.Equal(@case.Attachments.Single().Id, original.Id);
+        Assert.Equal("現場.jpg", original.FileName);
+        Assert.Equal("image/jpeg", original.ContentType);
+        Assert.Equal(2048, original.Size);
+        Assert.Equal(TestData.SubmittedAt, original.UploadedAt);
+
+        var supplement = reloaded.Attachments.Single(a => a.Id == supplementAttachmentId);
+        Assert.Equal(reloaded.SupplementRequests.Single().Id, supplement.SupplementRequestId);
+        Assert.Equal("地圖.pdf", supplement.FileName);
+        Assert.Equal(Now.AddDays(1), supplement.UploadedAt);
+    }
+
     // ── 存取範圍：範圍要真的變成 SQL 的查詢條件 ─────────────
 
     [Fact]

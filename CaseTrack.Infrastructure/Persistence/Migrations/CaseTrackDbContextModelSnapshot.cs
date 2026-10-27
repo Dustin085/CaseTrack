@@ -18,10 +18,46 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("CaseTrack.Domain.Cases.Attachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("SupplementRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId");
+
+                    b.HasIndex("SupplementRequestId");
+
+                    b.ToTable("Attachments", (string)null);
+                });
 
             modelBuilder.Entity("CaseTrack.Domain.Cases.Case", b =>
                 {
@@ -269,6 +305,20 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                     b.ToTable("CaseNumberCounters", (string)null);
                 });
 
+            modelBuilder.Entity("CaseTrack.Domain.Cases.Attachment", b =>
+                {
+                    b.HasOne("CaseTrack.Domain.Cases.Case", null)
+                        .WithMany("Attachments")
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CaseTrack.Domain.Cases.SupplementRequest", null)
+                        .WithMany()
+                        .HasForeignKey("SupplementRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("CaseTrack.Domain.Cases.Case", b =>
                 {
                     b.HasOne("CaseTrack.Domain.Departments.Department", null)
@@ -288,6 +338,8 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("CaseTrack.Domain.Cases.Case", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("SupplementRequests");
                 });
 #pragma warning restore 612, 618
