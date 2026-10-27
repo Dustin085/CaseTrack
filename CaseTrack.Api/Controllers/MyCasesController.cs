@@ -28,7 +28,8 @@ public sealed class MyCasesController : ControllerBase
                 request.Petitioner.Name,
                 request.Petitioner.Phone,
                 request.Petitioner.Email,
-                request.Petitioner.Address),
+                request.Petitioner.Address,
+                []), // 下一步改成 multipart/form-data 後傳入上傳的檔案
             cancellationToken);
 
         // 201 Created + Location 標頭指向民眾自己查得到的網址（不是承辦端的 /api/cases/{id}，民眾呼叫會 403）
@@ -65,7 +66,7 @@ public sealed class MyCasesController : ControllerBase
         [FromServices] SubmitSupplementHandler handler,
         CancellationToken cancellationToken)
     {
-        await handler.HandleAsync(id, request.Content, cancellationToken);
+        await handler.HandleAsync(id, request.Content, [], cancellationToken); // 下一步傳入上傳的檔案
         return NoContent();
     }
 }
