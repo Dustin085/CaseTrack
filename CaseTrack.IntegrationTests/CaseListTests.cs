@@ -228,7 +228,7 @@ public class CaseListTests
     private static AsyncServiceScope CreateScope(SqlRecorder? recorder = null)
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(DatabaseFixture.ConnectionString);
+        services.AddInfrastructure(DatabaseFixture.ConnectionString, TestData.FileStorageRoot);
         services.AddScoped<ICurrentUser>(_ => new FixedCurrentUser("test-user"));
         if (recorder is not null)
         {

@@ -194,7 +194,7 @@ public class OverdueSupplementTests
     private static ServiceProvider CreateProvider(DateTimeOffset now)
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(DatabaseFixture.ConnectionString);
+        services.AddInfrastructure(DatabaseFixture.ConnectionString, TestData.FileStorageRoot);
         services.AddApplication();
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(now));
         services.AddScoped<ICurrentUser>(_ => new FixedCurrentUser("test-user"));

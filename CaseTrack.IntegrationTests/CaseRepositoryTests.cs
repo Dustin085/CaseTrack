@@ -175,7 +175,7 @@ public class CaseRepositoryTests
     private static AsyncServiceScope CreateScope()
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(DatabaseFixture.ConnectionString);
+        services.AddInfrastructure(DatabaseFixture.ConnectionString, TestData.FileStorageRoot);
         services.AddScoped<ICurrentUser>(_ => new FixedCurrentUser("test-user"));
         return services.BuildServiceProvider().CreateAsyncScope();
     }

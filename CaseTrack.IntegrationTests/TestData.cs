@@ -14,4 +14,7 @@ internal static class TestData
 
     // migration 預先放入的工務局：受理之前一定要先分派，而且外鍵要求單位必須存在
     public static readonly Guid DepartmentId = DepartmentSeed.PublicWorks;
+
+    // 附件的存放位置：測試不能寫進原始碼資料夾（API 的 ContentRoot），一律放在暫存資料夾
+    public static readonly string FileStorageRoot = Path.Combine(Path.GetTempPath(), "CaseTrackTests", "attachments");
 }

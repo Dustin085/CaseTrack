@@ -33,8 +33,20 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<BearerSecurityOperationFilter>();
 });
 
-builder.Services.AddInfrastructure(builder.Configuration.GetConnectionString("CaseTrack")
-    ?? throw new InvalidOperationException("缺少連線字串 'CaseTrack'"));
+// 附件存放的根目錄。相對路徑一律相對於 ContentRootPath（專案或部署的資料夾），不是「目前的工作目錄」：
+// 工作目錄隨啟動方式而不同（IIS 常是 C:\Windows\System32）。設定值本身是絕對路徑時，Path.Combine 會直接採用它。
+// 用 IsNullOrWhiteSpace 不只檢查 null：空字串會讓 Path.Combine 得到 ContentRootPath 本身，附件就和 dll、appsettings 混在一起
+var configuredStorageRoot = builder.Configuration["FileStorage:RootPath"];
+if (string.IsNullOrWhiteSpace(configuredStorageRoot))
+{
+    throw new InvalidOperationException("缺少 FileStorage:RootPath（附件存放的資料夾）");
+}
+var fileStorageRoot = Path.Combine(builder.Environment.ContentRootPath, configuredStorageRoot);
+
+builder.Services.AddInfrastructure(
+    builder.Configuration.GetConnectionString("CaseTrack")
+        ?? throw new InvalidOperationException("缺少連線字串 'CaseTrack'"),
+    fileStorageRoot);
 builder.Services.AddApplication();
 
 // 設定檔綁定是用反射建立物件，會繞過 required 的檢查，所以缺少的值要自己檢查，並給出看得懂的錯誤訊息

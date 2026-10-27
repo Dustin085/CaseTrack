@@ -196,7 +196,7 @@ public class AuditInterceptorTests
     private static AsyncServiceScope CreateScope(DateTimeOffset now)
     {
         var services = new ServiceCollection();
-        services.AddInfrastructure(DatabaseFixture.ConnectionString);
+        services.AddInfrastructure(DatabaseFixture.ConnectionString, TestData.FileStorageRoot);
         services.AddScoped<ICurrentUser>(_ => new FixedCurrentUser("test-user"));
         services.AddSingleton<TimeProvider>(new FixedTimeProvider(now));
         return services.BuildServiceProvider().CreateAsyncScope();

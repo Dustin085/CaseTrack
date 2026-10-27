@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# 附件的存放位置（民眾上傳的檔案，絕對不能進版本控制）
+App_Data/

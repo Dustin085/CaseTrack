@@ -2,6 +2,7 @@
 using CaseTrack.Infrastructure.Persistence;
 using CaseTrack.Infrastructure.Persistence.Auditing;
 using CaseTrack.Infrastructure.Persistence.Repositories;
+using CaseTrack.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,7 +12,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        string connectionString)
+        string connectionString,
+        string fileStorageRootPath)
     {
         services.AddScoped<AuditInterceptor>();
         services.AddDbContext<CaseTrackDbContext>((sp, options) =>
@@ -25,6 +27,9 @@ public static class DependencyInjection
 
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<ICaseNumberGenerator, SqlCaseNumberGenerator>();
+
+        // 沒有狀態（只有根目錄這個設定），整個 app 共用一個
+        services.AddSingleton<IFileStorage>(new LocalFileStorage(fileStorageRootPath));
         return services;
     }
 }
