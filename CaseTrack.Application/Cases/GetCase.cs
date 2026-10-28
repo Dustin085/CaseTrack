@@ -17,6 +17,8 @@ public sealed record CaseDetails(
     string? RejectionReason,
     string? ClosingReply,
     PetitionerDetails Petitioner,
+    // 送件時附的；補件附的放在各自的 SupplementRequests 裡
+    IReadOnlyList<AttachmentDetails> Attachments,
     IReadOnlyList<SupplementRequestDetails> SupplementRequests,
     // 目前的使用者現在能做哪些動作（見 CaseActions），前端照著顯示按鈕
     IReadOnlyList<CaseAction> AllowedActions);
@@ -32,7 +34,23 @@ public sealed record SupplementRequestDetails(
     string Reason,
     DateTimeOffset RequestedAt,
     DateTimeOffset? SubmittedAt,
-    string? SubmittedContent);
+    string? SubmittedContent,
+    // 這一次補件附的。在後端就分好組，前端不用自己對應（DTO 也就不需要補件的 Id）
+    IReadOnlyList<AttachmentDetails> Attachments)
+{
+    // 承辦端和民眾端共用。從資料庫讀出的補件紀錄沒有順序保證，依補件次序排序
+    internal static IReadOnlyList<SupplementRequestDetails> ListFor(Case @case) =>
+        @case.SupplementRequests
+            .OrderBy(r => r.Sequence)
+            .Select(r => new SupplementRequestDetails(
+                r.Sequence,
+                r.Reason,
+                r.RequestedAt,
+                r.SubmittedAt,
+                r.SubmittedContent,
+                AttachmentDetails.ListFor(@case.Attachments, r.Id)))
+            .ToList();
+}
 
 public sealed class GetCaseHandler
 {
@@ -51,12 +69,6 @@ public sealed class GetCaseHandler
         var @case = await _caseRepository.GetByIdAsync(caseId, CaseAccessScope.For(_currentUser), cancellationToken)
             ?? throw new NotFoundException(nameof(Case), caseId);
 
-        // 從資料庫讀出的補件紀錄沒有順序保證，回傳前依補件次序排序
-        var supplementRequests = @case.SupplementRequests
-            .OrderBy(r => r.Sequence)
-            .Select(r => new SupplementRequestDetails(r.Sequence, r.Reason, r.RequestedAt, r.SubmittedAt, r.SubmittedContent))
-            .ToList();
-
         return new CaseDetails(
             @case.Id,
             @case.CaseNumber,
@@ -68,7 +80,8 @@ public sealed class GetCaseHandler
             @case.RejectionReason,
             @case.ClosingReply,
             ToMaskedDetails(@case.Petitioner),
-            supplementRequests,
+            AttachmentDetails.ListFor(@case.Attachments, supplementRequestId: null),
+            SupplementRequestDetails.ListFor(@case),
             CaseActions.AllowedFor(@case, _currentUser));
     }
 

@@ -30,9 +30,12 @@ internal sealed class CaseRepository : ICaseRepository
             return Task.FromResult<Case?>(null);
         }
 
+        // AsSplitQuery：兩個集合用 JOIN 一次讀的話，資料列會相乘（3 次補件 × 5 個附件 = 15 列，案件的欄位重複 15 次）。
+        // 拆成每個集合各一個 SELECT，資料列只是相加
         return _dbContext.Cases
             .Include(c => c.SupplementRequests)
             .Include(c => c.Attachments)
+            .AsSplitQuery()
             .ApplyScope(scope)
             .Where(c => c.Id == id)
             .SingleOrDefaultAsync(cancellationToken);

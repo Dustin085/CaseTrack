@@ -1,4 +1,5 @@
 using CaseTrack.Api.Authentication;
+using CaseTrack.Api.Common;
 using CaseTrack.Api.Contracts;
 using CaseTrack.Application.Cases;
 using CaseTrack.Application.Common;
@@ -126,5 +127,21 @@ public sealed class CasesController : ControllerBase
         return Ok(await handler.HandleAsync(
             new CaseListQuery(request.Status, request.Keyword, request.Page, request.PageSize),
             cancellationToken));
+    }
+
+    // 下載附件。分派人員也要能看（看了照片才知道該分給哪個單位），所以用 CaseReader；
+    // 能下載哪些案件的附件和 GET /api/cases/{id} 一樣，由 Handler 的資料範圍決定。
+    // no-store：照片、文件可能拍到民眾的臉或門牌，不能被瀏覽器或 proxy 快取
+    [Authorize(Policy = Policies.CaseReader)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [HttpGet("{id:guid}/attachments/{attachmentId:guid}")]
+    public async Task<ActionResult> DownloadAttachment(
+        [FromRoute] Guid id,
+        [FromRoute] Guid attachmentId,
+        [FromServices] GetAttachmentHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var content = await handler.ForStaffAsync(id, attachmentId, cancellationToken);
+        return this.AttachmentFile(content);
     }
 }

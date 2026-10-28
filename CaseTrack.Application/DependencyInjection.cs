@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ListCasesHandler>();
         services.AddScoped<ListMyCasesHandler>();
         services.AddScoped<GetMyCaseHandler>();
+        services.AddScoped<GetAttachmentHandler>();
         services.AddScoped<ListDepartmentsHandler>();
         return services;
     }

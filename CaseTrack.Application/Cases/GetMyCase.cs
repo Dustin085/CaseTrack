@@ -18,6 +18,8 @@ public sealed record CitizenCaseDetails(
     string? RejectionReason,
     string? ClosingReply,
     PetitionerDetails Petitioner,
+    // 送件時附的；補件附的放在各自的 SupplementRequests 裡
+    IReadOnlyList<AttachmentDetails> Attachments,
     IReadOnlyList<SupplementRequestDetails> SupplementRequests);
 
 public sealed class GetMyCaseHandler
@@ -37,12 +39,6 @@ public sealed class GetMyCaseHandler
         var @case = await _caseRepository.GetByIdAsync(caseId, CaseAccessScope.ForPetitioner(_currentUser.UserId), cancellationToken)
             ?? throw new NotFoundException(nameof(Case), caseId);
 
-        // 從資料庫讀出的補件紀錄沒有順序保證，回傳前依補件次序排序
-        var supplementRequests = @case.SupplementRequests
-            .OrderBy(r => r.Sequence)
-            .Select(r => new SupplementRequestDetails(r.Sequence, r.Reason, r.RequestedAt, r.SubmittedAt, r.SubmittedContent))
-            .ToList();
-
         return new CitizenCaseDetails(
             @case.Id,
             @case.CaseNumber,
@@ -53,7 +49,8 @@ public sealed class GetMyCaseHandler
             @case.RejectionReason,
             @case.ClosingReply,
             ToDetails(@case.Petitioner),
-            supplementRequests);
+            AttachmentDetails.ListFor(@case.Attachments, supplementRequestId: null),
+            SupplementRequestDetails.ListFor(@case));
     }
 
     // 不遮罩，也不寫個資查詢紀錄：這是當事人看自己的資料。

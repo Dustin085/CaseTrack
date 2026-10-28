@@ -76,4 +76,18 @@ public sealed class MyCasesController : ControllerBase
         await handler.HandleAsync(id, request.Content, request.Attachments.ToUploadedFiles(), cancellationToken);
         return NoContent();
     }
+
+    // 下載自己案件的附件（送件或補件時附的）；別人的案件、不屬於這個案件的附件一律 404。
+    // no-store：和 GetMyCase 一樣，可能含有個資
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [HttpGet("{id:guid}/attachments/{attachmentId:guid}")]
+    public async Task<ActionResult> DownloadMyAttachment(
+        [FromRoute] Guid id,
+        [FromRoute] Guid attachmentId,
+        [FromServices] GetAttachmentHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var content = await handler.ForPetitionerAsync(id, attachmentId, cancellationToken);
+        return this.AttachmentFile(content);
+    }
 }
