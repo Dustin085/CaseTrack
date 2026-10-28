@@ -22,3 +22,14 @@ export function formatDateTime(iso: string): string {
   }
   return dateTimeFormatter.format(date)
 }
+
+// 檔案大小，例如 "850 KB"、"1.2 MB"。用 1024 進位，和檔案總管顯示的一致（附件上限 10 MB 也是 10 × 1024 × 1024）
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`
+  }
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}

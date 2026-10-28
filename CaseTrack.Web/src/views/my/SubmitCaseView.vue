@@ -53,7 +53,8 @@ async function handleSubmit() {
   }
 
   try {
-    const result = await submitCase(request)
+    // 附件的選擇元件還沒接上，先送空的清單
+    const result = await submitCase(request, [])
     await router.push({ name: 'my-case-detail', params: { id: result.id } })
   } catch (e) {
     if (e instanceof ApiError && e.problem?.errors) {

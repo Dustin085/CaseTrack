@@ -79,7 +79,8 @@ async function handleSubmitSupplement() {
   supplementConflict.value = null
   submittingSupplement.value = true
   try {
-    await submitSupplement(props.id, supplementContent.value.trim())
+    // 附件的選擇元件還沒接上，先送空的清單
+    await submitSupplement(props.id, supplementContent.value.trim(), [])
     supplementContent.value = ''
     supplementSuccess.value = true
     // 重新載入，不自己改 status：狀態轉換的規則在後端的 Domain，前端自己改等於再寫一次業務規則

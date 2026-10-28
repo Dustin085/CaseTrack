@@ -29,8 +29,12 @@ export async function apiFetch<T>(
   }
 
   const init: RequestInit = { method: options?.method ?? 'GET', headers }
-  // 用 !== undefined：body 是 0、''、false 時也是合法的內容，不能當成沒有 body
-  if (options?.body !== undefined) {
+  if (options?.body instanceof FormData) {
+    // 不要設定 Content-Type：瀏覽器會自動加上 multipart/form-data; boundary=...（分隔字串是組 body 時才產生的），
+    // 自己設定的話會少了 boundary，後端讀不懂 body
+    init.body = options.body
+  } else if (options?.body !== undefined) {
+    // 用 !== undefined：body 是 0、''、false 時也是合法的內容，不能當成沒有 body
     // 不設定的話，fetch 送字串的預設是 text/plain，ASP.NET Core 會回 415
     headers['Content-Type'] = 'application/json'
     init.body = JSON.stringify(options.body)
