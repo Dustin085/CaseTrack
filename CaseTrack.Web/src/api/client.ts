@@ -8,15 +8,41 @@ export class ApiError extends Error {
   readonly problem: ProblemDetails | null
 
   constructor(status: number, problem: ProblemDetails | null) {
-    // message 優先用後端的說明，畫面上可以直接顯示；沒有 ProblemDetails 時（例如 502）退回狀態碼
-    super(problem?.detail ?? problem?.title ?? `HTTP ${status}`)
+    super(messageFor(status, problem))
     this.name = 'ApiError'
     this.status = status
     this.problem = problem
   }
 }
 
-// 呼叫後端 API。成功時回傳解析後的 JSON；失敗時一律拋出 ApiError，呼叫端用 e.status 判斷。
+// message 是頁面直接顯示給使用者的文字，一定要是中文：
+// - 502、503、504：後端停了、重新部署中或逾時。回應來自前面的 proxy（開發時是 Vite，正式環境是 IIS／Nginx），
+//   fetch 有收到回應，所以不是 NetworkError
+// - 其他 5xx：後端的 ProblemDetails 是框架的英文預設值（"An error occurred while processing your request."），
+//   不能顯示；保留狀態碼，民眾回報時客服才知道是哪一種錯誤
+// - 4xx：用後端的說明（Domain 的錯誤訊息是中文的 detail）
+function messageFor(status: number, problem: ProblemDetails | null): string {
+  if (status === 502 || status === 503 || status === 504) {
+    return '系統暫時無法使用，請稍後再試'
+  }
+  if (status >= 500) {
+    return `系統發生錯誤（HTTP ${status}），請稍後再試`
+  }
+  return problem?.detail ?? problem?.title ?? `發生錯誤（HTTP ${status}），請稍後再試`
+}
+
+// 沒有收到任何回應（斷線、後端沒啟動、上傳太大被中斷連線）。跟 ApiError 分開：
+// ApiError 是「後端說不行」，這個是「根本沒連上」。訊息是中文，頁面直接顯示 message 就好，
+// 不會把 fetch 原本的英文 "Failed to fetch" 給民眾看。原本的錯誤放在 cause，除錯時在 console 看得到
+export class NetworkError extends Error {
+  constructor(options?: ErrorOptions) {
+    super('無法連線到伺服器，請確認網路後再試；如果有附件，請確認檔案大小', options)
+    this.name = 'NetworkError'
+  }
+}
+
+// 呼叫後端 API。成功時回傳解析後的 JSON；有回應但失敗時拋出 ApiError，呼叫端用 e.status 判斷；
+// 沒有收到回應時拋出 NetworkError。
 // T 是呼叫端的承諾，不是檢查：TypeScript 的型別在執行時都被擦掉了，response.json() 拿到什麼就是什麼
 export async function apiFetch<T>(
   path: string,
@@ -40,7 +66,15 @@ export async function apiFetch<T>(
     init.body = JSON.stringify(options.body)
   }
 
-  const response = await fetch(path, init)
+  let response: Response
+  try {
+    response = await fetch(path, init)
+  } catch (e) {
+    // fetch 沒有收到任何回應時才會丟出例外（4xx、5xx 不會，那些在下面處理）：
+    // 斷線、後端沒啟動、上傳太大被中斷連線（瀏覽器讀不到 413）。
+    // 之後如果加上 AbortSignal（例如換頁時取消請求），AbortError 要直接往外丟，不能包成 NetworkError
+    throw new NetworkError({ cause: e })
+  }
 
   if (!response.ok) {
     // token 過期或無效：登出，然後拋出例外（呼叫端才不會當成成功繼續往下執行）。

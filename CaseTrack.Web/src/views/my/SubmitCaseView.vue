@@ -2,6 +2,7 @@
 import { ApiError } from '@/api/client'
 import { submitCase } from '@/api/myCases'
 import type { SubmitCaseRequest } from '@/api/types'
+import AttachmentPicker from '@/components/AttachmentPicker.vue'
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -21,6 +22,7 @@ const fieldErrors = ref<Record<string, string[]>>({})
 // 表單上方的錯誤：Domain 的規則（沒有 errors，只有 detail）或其他錯誤
 const formError = ref<string | null>(null)
 const submitting = ref(false)
+const files = ref<File[]>([])
 
 function errorFor(key: string): string | undefined {
   return fieldErrors.value[key]?.[0]
@@ -53,8 +55,7 @@ async function handleSubmit() {
   }
 
   try {
-    // 附件的選擇元件還沒接上，先送空的清單
-    const result = await submitCase(request, [])
+    const result = await submitCase(request, files.value)
     await router.push({ name: 'my-case-detail', params: { id: result.id } })
   } catch (e) {
     if (e instanceof ApiError && e.problem?.errors) {
@@ -104,6 +105,14 @@ async function handleSubmit() {
           aria-describedby="content-error"
         ></textarea>
         <p v-if="errorFor('Content')" id="content-error" class="error">{{ errorFor('Content') }}</p>
+      </div>
+
+      <div class="field">
+        <AttachmentPicker
+          v-model="files"
+          :server-error="errorFor('Attachments')"
+          :disabled="submitting"
+        />
       </div>
     </fieldset>
 
