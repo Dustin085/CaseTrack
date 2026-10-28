@@ -2,6 +2,7 @@
 import { ApiError } from '@/api/client'
 import { getMyCase, submitSupplement } from '@/api/myCases'
 import type { CitizenCaseDetails } from '@/api/types'
+import AttachmentPicker from '@/components/AttachmentPicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SupplementHistory from '@/components/SupplementHistory.vue'
 import { formatDateTime } from '@/utils/format'
@@ -50,8 +51,15 @@ const canSubmitSupplement = computed(
 )
 
 const supplementContent = ref('')
-// 補件說明的錯誤：顯示在表單裡的欄位旁邊
+const supplementFiles = ref<File[]>([])
+// 補件說明的錯誤（errors.Content）：顯示在文字框旁邊
 const supplementError = ref<string | null>(null)
+// 附件的錯誤（errors.Attachments：數量、偽裝的檔案、總大小超過上限）：交給 AttachmentPicker 顯示。
+// 送出前先清成 undefined：同樣的訊息再出現一次時值也有變化，元件才會重新顯示
+const supplementAttachmentError = ref<string | undefined>(undefined)
+// 不屬於某個欄位的錯誤（Domain 的規則只有 detail、連線失敗、5xx）：顯示在送出按鈕上方，
+// 不放在文字框旁邊，否則文字框會被標成 aria-invalid，民眾以為是補件說明寫錯
+const supplementFormError = ref<string | null>(null)
 // 送出後的結果（成功、409）：顯示在表單「外面」。送出後會重新載入，狀態不再是補件中，
 // 表單整個被隱藏，放在表單裡的訊息會跟著消失，民眾只看到表單突然不見
 const supplementSuccess = ref(false)
@@ -63,7 +71,10 @@ watch(
   () => props.id,
   () => {
     supplementContent.value = ''
+    supplementFiles.value = []
     supplementError.value = null
+    supplementAttachmentError.value = undefined
+    supplementFormError.value = null
     supplementSuccess.value = false
     supplementConflict.value = null
   },
@@ -75,26 +86,36 @@ async function handleSubmitSupplement() {
     return
   }
   supplementError.value = null
+  supplementAttachmentError.value = undefined
+  supplementFormError.value = null
   supplementSuccess.value = false
   supplementConflict.value = null
   submittingSupplement.value = true
   try {
-    // 附件的選擇元件還沒接上，先送空的清單
-    await submitSupplement(props.id, supplementContent.value.trim(), [])
+    await submitSupplement(props.id, supplementContent.value.trim(), supplementFiles.value)
+    // 送件成功會換頁，補件成功還是同一頁：不清掉的話，承辦人再要求補件時，上一次的檔案還在清單裡
     supplementContent.value = ''
+    supplementFiles.value = []
     supplementSuccess.value = true
     // 重新載入，不自己改 status：狀態轉換的規則在後端的 Domain，前端自己改等於再寫一次業務規則
     await load()
   } catch (e) {
     if (e instanceof ApiError && e.problem?.errors) {
-      supplementError.value = e.problem.errors['Content']?.[0] ?? '請確認補件說明'
+      // 補件說明和附件可能同時有錯，各自顯示在自己的欄位旁邊
+      const errors = e.problem.errors
+      supplementError.value = errors['Content']?.[0] ?? null
+      supplementAttachmentError.value = errors['Attachments']?.[0]
+      // 兩個欄位都沒有：後端新增了其他欄位的驗證，至少讓民眾知道沒有送出
+      if (!supplementError.value && !supplementAttachmentError.value) {
+        supplementFormError.value = '請確認補件內容後再送出'
+      }
     } else if (e instanceof ApiError && e.status === 409) {
       // 狀態已經不是「補件中」：例如逾期被自動退件、在另一個分頁補過了。重新載入讓畫面跟著更新
       supplementConflict.value =
         '這件案件目前無法補件（可能已經補過或已逾期），畫面已更新為最新狀態'
       await load()
     } else {
-      supplementError.value = e instanceof Error ? e.message : '送出補件時發生錯誤'
+      supplementFormError.value = e instanceof Error ? e.message : '送出補件時發生錯誤'
     }
   } finally {
     submittingSupplement.value = false
@@ -164,6 +185,12 @@ function orNotProvided(value: string | null): string {
         <p v-if="supplementError" id="supplement-error" class="error" role="alert">
           {{ supplementError }}
         </p>
+        <AttachmentPicker
+          v-model="supplementFiles"
+          :server-error="supplementAttachmentError"
+          :disabled="submittingSupplement"
+        />
+        <p v-if="supplementFormError" class="error" role="alert">{{ supplementFormError }}</p>
         <button type="submit" :disabled="submittingSupplement">
           {{ submittingSupplement ? '送出中…' : '送出補件' }}
         </button>
