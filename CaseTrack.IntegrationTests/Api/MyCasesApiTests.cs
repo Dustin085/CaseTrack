@@ -35,9 +35,7 @@ public class MyCasesApiTests : IClassFixture<CaseTrackApiFactory>
     [Fact]
     public async Task SubmitCase_WithoutToken_ReturnsUnauthorized()
     {
-        var response = await _factory.CreateClient().PostAsJsonAsync("api/my/cases",
-            new { subject = "路燈不亮", content = "中山路路燈故障", petitioner = ValidPetitioner },
-            TestContext.Current.CancellationToken);
+        var response = await _factory.CreateClient().PostCaseAsync(CaseForm());
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -76,8 +74,7 @@ public class MyCasesApiTests : IClassFixture<CaseTrackApiFactory>
         var userId = $"u-citizen-{Guid.NewGuid():N}";
         var client = _factory.CreateCitizenClient(userId);
 
-        var response = await client.PostAsJsonAsync("api/my/cases",
-            new { subject = "路燈不亮", content = "中山路路燈故障", petitioner = ValidPetitioner }, cancellationToken);
+        var response = await client.PostCaseAsync(CaseForm());
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var submitted = await response.Content.ReadFromJsonAsync<SubmitCaseResult>(cancellationToken);
@@ -162,10 +159,8 @@ public class MyCasesApiTests : IClassFixture<CaseTrackApiFactory>
             (await _officerClient.PostAsJsonAsync($"api/cases/{others.Id}/supplement-requests",
                 new { reason = "缺照片" }, cancellationToken)).StatusCode);
 
-        var byOther = await _citizenA.PostAsJsonAsync($"api/my/cases/{others.Id}/supplement-submission",
-            new { content = "冒名補件" }, cancellationToken);
-        var byOwner = await _citizenB.PostAsJsonAsync($"api/my/cases/{others.Id}/supplement-submission",
-            new { content = "已補上照片說明" }, cancellationToken);
+        var byOther = await _citizenA.PostSupplementAsync(others.Id, SupplementForm("冒名補件"));
+        var byOwner = await _citizenB.PostSupplementAsync(others.Id, SupplementForm("已補上照片說明"));
 
         Assert.Equal(HttpStatusCode.NotFound, byOther.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, byOwner.StatusCode);

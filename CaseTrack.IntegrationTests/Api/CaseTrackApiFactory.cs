@@ -3,7 +3,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace CaseTrack.IntegrationTests.Api;
 
-public sealed class CaseTrackApiFactory : WebApplicationFactory<Program>
+// 不是 sealed：KestrelApiFactory 繼承它，改用真的 Kestrel
+public class CaseTrackApiFactory : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

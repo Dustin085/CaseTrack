@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -18,15 +19,68 @@ internal static class ApiTestHelpers
         Converters = { new JsonStringEnumConverter(allowIntegerValues: false) },
     };
 
-    public static readonly object ValidPetitioner = new { name = "王小明", phone = "0912345678" };
+    // ── 上傳用的表單 ─────────────────────────────────────
+
+    // 測試用的檔案內容：只有檔頭是真的，後面隨便放幾個 bytes
+    public static readonly byte[] JpegBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46];
+    public static readonly byte[] PngBytes = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00];
+    public static readonly byte[] PdfBytes = "%PDF-1.7 test"u8.ToArray();
+
+    // ContentType 是瀏覽器依副檔名猜的值（伺服器不採用），預設給一個不相干的值，證明類型是看檔頭決定的
+    public sealed record TestFile(string FileName, byte[] Content, string ContentType = "application/octet-stream");
+
+    // 送件的表單：欄位名稱和瀏覽器的 FormData 一樣（巢狀物件用 Petitioner.Name），檔案都放在 Attachments
+    public static MultipartFormDataContent CaseForm(
+        string subject = "路燈不亮",
+        string content = "中山路路燈故障",
+        string petitionerName = "王小明",
+        string? phone = "0912345678",
+        string? email = null,
+        params TestFile[] files)
+    {
+        var form = new MultipartFormDataContent
+        {
+            { new StringContent(subject), "Subject" },
+            { new StringContent(content), "Content" },
+            { new StringContent(petitionerName), "Petitioner.Name" },
+        };
+        if (phone is not null) form.Add(new StringContent(phone), "Petitioner.Phone");
+        if (email is not null) form.Add(new StringContent(email), "Petitioner.Email");
+        AddFiles(form, files);
+        return form;
+    }
+
+    public static MultipartFormDataContent SupplementForm(string content = "已補上現場照片的說明", params TestFile[] files)
+    {
+        var form = new MultipartFormDataContent { { new StringContent(content), "Content" } };
+        AddFiles(form, files);
+        return form;
+    }
+
+    // 同一個欄位名稱（Attachments）加好幾次，就是多個檔案。
+    // 檔名有中文時，HttpClient 會同時送出 filename 和 filename*（RFC 5987 的 UTF-8 寫法）
+    private static void AddFiles(MultipartFormDataContent form, TestFile[] files)
+    {
+        foreach (var file in files)
+        {
+            var part = new ByteArrayContent(file.Content);
+            part.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+            form.Add(part, "Attachments", file.FileName);
+        }
+    }
+
+    public static Task<HttpResponseMessage> PostCaseAsync(this HttpClient client, MultipartFormDataContent form) =>
+        client.PostAsync("api/my/cases", form, TestContext.Current.CancellationToken);
+
+    public static Task<HttpResponseMessage> PostSupplementAsync(this HttpClient client, Guid caseId, MultipartFormDataContent form) =>
+        client.PostAsync($"api/my/cases/{caseId}/supplement-submission", form, TestContext.Current.CancellationToken);
 
     // 民眾送件。準備資料失敗時直接在這裡失敗，錯誤訊息才看得出是哪一步出問題
     public static async Task<SubmitCaseResult> SubmitCaseAsync(
         this HttpClient citizenClient, string subject = "路燈不亮", string content = "中山路路燈故障")
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var response = await citizenClient.PostAsJsonAsync("api/my/cases",
-            new { subject, content, petitioner = ValidPetitioner }, cancellationToken);
+        var response = await citizenClient.PostCaseAsync(CaseForm(subject, content));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var result = await response.Content.ReadFromJsonAsync<SubmitCaseResult>(cancellationToken);

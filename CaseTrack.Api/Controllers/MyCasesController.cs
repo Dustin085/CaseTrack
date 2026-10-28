@@ -1,4 +1,5 @@
 using CaseTrack.Api.Authentication;
+using CaseTrack.Api.Common;
 using CaseTrack.Api.Contracts;
 using CaseTrack.Application.Cases;
 using CaseTrack.Application.Common;
@@ -16,8 +17,11 @@ namespace CaseTrack.Api.Controllers;
 public sealed class MyCasesController : ControllerBase
 {
     [HttpPost]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(UploadLimits.MaxRequestBodySize)]
+    [MultipartFormLimit]
     public async Task<ActionResult<SubmitCaseResult>> SubmitCase(
-        [FromBody] SubmitCaseRequest request,
+        [FromForm] SubmitCaseRequest request,
         [FromServices] SubmitCaseHandler handler,
         CancellationToken cancellationToken)
     {
@@ -29,7 +33,7 @@ public sealed class MyCasesController : ControllerBase
                 request.Petitioner.Phone,
                 request.Petitioner.Email,
                 request.Petitioner.Address,
-                []), // 下一步改成 multipart/form-data 後傳入上傳的檔案
+                request.Attachments.ToUploadedFiles()),
             cancellationToken);
 
         // 201 Created + Location 標頭指向民眾自己查得到的網址（不是承辦端的 /api/cases/{id}，民眾呼叫會 403）
@@ -60,13 +64,16 @@ public sealed class MyCasesController : ControllerBase
 
     // 補的是目前唯一一筆未補件的請求，所以不需要在網址指定是哪一筆
     [HttpPost("{id:guid}/supplement-submission")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(UploadLimits.MaxRequestBodySize)]
+    [MultipartFormLimit]
     public async Task<ActionResult> SubmitSupplement(
         [FromRoute] Guid id,
-        [FromBody] SubmitSupplementRequest request,
+        [FromForm] SubmitSupplementRequest request,
         [FromServices] SubmitSupplementHandler handler,
         CancellationToken cancellationToken)
     {
-        await handler.HandleAsync(id, request.Content, [], cancellationToken); // 下一步傳入上傳的檔案
+        await handler.HandleAsync(id, request.Content, request.Attachments.ToUploadedFiles(), cancellationToken);
         return NoContent();
     }
 }

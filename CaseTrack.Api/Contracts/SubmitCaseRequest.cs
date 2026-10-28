@@ -13,7 +13,11 @@ public sealed record SubmitCaseRequest(
     string Content,
 
     [Required(ErrorMessage = "陳情人資料不可為空")]
-    PetitionerRequest Petitioner);
+    PetitionerRequest Petitioner,
+
+    // multipart/form-data 裡同一個欄位名稱（Attachments）出現好幾個部分，就會綁定成清單。
+    // 沒有附件時是 null，由 ToUploadedFiles 當成空清單處理
+    List<IFormFile>? Attachments);
 
 // 「電話與 Email 至少一項」跨兩個欄位，單一欄位的標註表達不了，由 Domain 的 Petitioner 檢查
 public sealed record PetitionerRequest(
