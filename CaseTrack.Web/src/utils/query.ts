@@ -13,3 +13,16 @@ export function parsePositiveInt(
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : fallback
 }
+
+// 從網址讀出搜尋的文字。陣列（?keyword=a&keyword=b）、空白都當成沒有；
+// 超過 maxLength 就截斷，不然後端回 400，整個列表變成錯誤訊息
+export function parseSearchText(
+  value: LocationQueryValue | LocationQueryValue[] | undefined,
+  maxLength: number,
+): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+  const trimmed = value.trim().slice(0, maxLength)
+  return trimmed === '' ? undefined : trimmed
+}

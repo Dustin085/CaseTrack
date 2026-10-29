@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { listCases } from '@/api/cases'
+import { listCases, MAX_KEYWORD_LENGTH } from '@/api/cases'
 import { CASE_STATUSES, isCaseStatus, type CaseSummary, type PagedResult } from '@/api/types'
 import { useDepartments } from '@/composables/useDepartments'
 import { caseStatusLabels } from '@/utils/caseStatus'
 import StatusBadge from '@/components/StatusBadge.vue'
 import { formatDateTime } from '@/utils/format'
-import { parsePositiveInt } from '@/utils/query'
+import { parsePositiveInt, parseSearchText } from '@/utils/query'
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -35,6 +35,30 @@ const selectedStatus = computed({
   },
 })
 
+// 關鍵字也放在網址上（可以分享、重新整理、上一頁都還在）。
+// 輸入框是另一個 ref：打字時不改網址，按下搜尋（或 Enter）才改。
+// 不做「邊打邊搜」：每打一個字就查一次資料庫，打到一半的字（例如注音還沒選字）也會送出
+const keyword = computed(() => parseSearchText(route.query.keyword, MAX_KEYWORD_LENGTH))
+const keywordInput = ref('')
+// 網址的關鍵字改變（上一頁、點選單回到列表）時，輸入框跟著顯示目前的條件，不會跟列表的內容對不上
+watch(
+  keyword,
+  (value) => {
+    keywordInput.value = value ?? ''
+  },
+  { immediate: true },
+)
+
+function search() {
+  const value = keywordInput.value.trim()
+  router.push({ query: { ...route.query, page: '1', keyword: value || undefined } })
+}
+
+function clearSearch() {
+  keywordInput.value = ''
+  router.push({ query: { ...route.query, page: '1', keyword: undefined } })
+}
+
 const totalPages = computed(() =>
   result.value ? Math.ceil(result.value.totalCount / result.value.pageSize) : 0,
 )
@@ -48,7 +72,12 @@ async function load() {
   loading.value = true
   errorMessage.value = null
   try {
-    result.value = await listCases({ page: page.value, pageSize: PAGE_SIZE, status: status.value })
+    result.value = await listCases({
+      page: page.value,
+      pageSize: PAGE_SIZE,
+      status: status.value,
+      keyword: keyword.value,
+    })
     // 網址的頁碼超過最後一頁：換到最後一頁。用 replace，不在瀏覽紀錄留下不存在的頁碼
     if (totalPages.value > 0 && page.value > totalPages.value) {
       await goToPage(totalPages.value, true)
@@ -68,13 +97,27 @@ function goToPage(target: number, replace = false) {
 }
 
 // 頁碼或篩選條件改變都重新載入；immediate：進入頁面時就執行一次
-watch([page, status], load, { immediate: true })
+watch([page, status, keyword], load, { immediate: true })
 </script>
 
 <template>
   <h1>案件列表</h1>
 
   <div class="filters">
+    <!-- role="search"：螢幕報讀可以直接跳到搜尋區。用 form：按 Enter 就會送出 -->
+    <form role="search" class="search" @submit.prevent="search">
+      <label for="keyword">關鍵字</label>
+      <input
+        id="keyword"
+        v-model="keywordInput"
+        type="search"
+        :maxlength="MAX_KEYWORD_LENGTH"
+        placeholder="主旨或案件編號"
+      />
+      <button type="submit">搜尋</button>
+      <button v-if="keyword" type="button" @click="clearSearch">清除</button>
+    </form>
+
     <label for="status-filter">狀態</label>
     <select id="status-filter" v-model="selectedStatus">
       <option value="">全部</option>
@@ -123,9 +166,16 @@ watch([page, status], load, { immediate: true })
 <style scoped>
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 1rem;
+}
+.search {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-right: 1rem;
 }
 .pager {
   display: flex;

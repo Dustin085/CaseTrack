@@ -11,11 +11,17 @@ import type {
 // 承辦端的 API（/api/cases），給承辦人、主管、分派人員用。民眾呼叫會得到 403。
 // 看得到哪些案件由後端決定：承辦人、主管只有本單位，分派人員全部
 
-// status 沒有值時不放進查詢字串：URLSearchParams 會把 undefined 變成字串 "undefined"，後端回 400
+// 關鍵字的長度上限，與後端 ListCasesRequest.Keyword 的 [MaxLength(100)] 一致
+export const MAX_KEYWORD_LENGTH = 100
+
+// status、keyword 沒有值時不放進查詢字串：URLSearchParams 會把 undefined 變成字串 "undefined"
+// （status 會回 400，keyword 會變成搜尋 "undefined"）。
+// keyword 比對主旨與案件編號（部分符合），中文與特殊字元由 URLSearchParams 編碼
 export function listCases(query: {
   page: number
   pageSize: number
   status?: CaseStatus
+  keyword?: string
 }): Promise<PagedResult<CaseSummary>> {
   const searchParams = new URLSearchParams({
     page: query.page.toString(),
@@ -23,6 +29,9 @@ export function listCases(query: {
   })
   if (query.status) {
     searchParams.set('status', query.status)
+  }
+  if (query.keyword) {
+    searchParams.set('keyword', query.keyword)
   }
 
   return apiFetch<PagedResult<CaseSummary>>(`/api/cases?${searchParams}`)
