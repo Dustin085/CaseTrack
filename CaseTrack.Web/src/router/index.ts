@@ -2,6 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import LoginView from '@/views/LoginView.vue'
 import { useAuth } from '@/composables/useAuth'
 
+// 路由的 meta 預設是 Record<string, unknown>，宣告之後 to.meta.requiresAdmin 才有型別（打錯字會編譯失敗）
+declare module 'vue-router' {
+  interface RouteMeta {
+    requiresAdmin?: boolean
+  }
+}
+
 // 登入頁直接載入；其他頁面用 () => import(...) 延遲載入：打包時各自拆成獨立的檔案，進到那一頁才下載
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -43,6 +50,18 @@ const router = createRouter({
       component: () => import('@/views/cases/CaseDetailView.vue'),
       props: true,
     },
+    {
+      path: '/admin/departments',
+      name: 'admin-departments',
+      component: () => import('@/views/admin/DepartmentsView.vue'),
+      meta: { requiresAdmin: true },
+    },
+    {
+      path: '/admin/audit-entries',
+      name: 'admin-audit-entries',
+      component: () => import('@/views/admin/AuditLogView.vue'),
+      meta: { requiresAdmin: true },
+    },
   ],
 })
 
@@ -72,6 +91,12 @@ router.beforeEach(async (to) => {
   }
 
   if (to.name === 'home') {
+    return useAuth().homePath.value
+  }
+
+  // 管理頁面：非管理者導回自己的首頁，不要進到頁面後才看到 403。
+  // 常見的情況：管理者登出後，別的帳號登入，redirect 還是剛才的管理頁面
+  if (to.meta.requiresAdmin && !useAuth().isAdmin.value) {
     return useAuth().homePath.value
   }
 })

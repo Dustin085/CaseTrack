@@ -16,8 +16,8 @@ public class DepartmentConfiguration : IEntityTypeConfiguration<Department>
         builder.Property(d => d.Name).HasMaxLength(50);
 
         builder.HasData(
-            new { Id = DepartmentSeed.PublicWorks, Code = "PWD", Name = "工務局" },
-            new { Id = DepartmentSeed.EnvironmentalProtection, Code = "ENV", Name = "環境保護局" },
-            new { Id = DepartmentSeed.Transportation, Code = "TRA", Name = "交通局" });
+            new { Id = DepartmentSeed.PublicWorks, Code = "PWD", Name = "工務局", IsActive = true },
+            new { Id = DepartmentSeed.EnvironmentalProtection, Code = "ENV", Name = "環境保護局", IsActive = true },
+            new { Id = DepartmentSeed.Transportation, Code = "TRA", Name = "交通局", IsActive = true });
     }
 }

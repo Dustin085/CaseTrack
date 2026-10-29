@@ -41,6 +41,12 @@ const requests: DevTokenRequest[] = [
     roles: ['Dispatcher'],
     departmentId: null,
   },
+  {
+    userId: '9a2f6c1e-5b38-4d07-b6e4-8c1d3f7a2905',
+    name: '系統管理者',
+    roles: ['Administrator'],
+    departmentId: null,
+  },
 ]
 
 // 登入後要回到哪一頁。query 的值可能是 string、null 或陣列（?redirect=a&redirect=b），只接受一個字串；

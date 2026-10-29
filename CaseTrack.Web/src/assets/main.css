@@ -172,3 +172,13 @@ tbody tr:last-child td {
   color: var(--color-muted);
   font-size: 0.9rem;
 }
+
+/* 畫面上看不到、螢幕報讀軟體念得到（例如表格「操作」欄的標題） */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

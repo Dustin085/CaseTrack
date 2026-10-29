@@ -1,5 +1,6 @@
 using CaseTrack.Application.Abstractions;
 using CaseTrack.Application.Departments;
+using CaseTrack.Domain.Departments;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaseTrack.Infrastructure.Persistence.Repositories;
@@ -14,9 +15,24 @@ internal sealed class DepartmentRepository : IDepartmentRepository
     }
 
     // 只需要知道存不存在：AnyAsync 會翻譯成 SELECT CASE WHEN EXISTS(...)，不會把整筆資料讀出來
-    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken)
+    public Task<bool> IsActiveAsync(Guid id, CancellationToken cancellationToken)
     {
-        return _dbContext.Departments.AnyAsync(d => d.Id == id, cancellationToken);
+        return _dbContext.Departments.AnyAsync(d => d.Id == id && d.IsActive, cancellationToken);
+    }
+
+    public Task<bool> CodeExistsAsync(string code, CancellationToken cancellationToken)
+    {
+        return _dbContext.Departments.AnyAsync(d => d.Code == code, cancellationToken);
+    }
+
+    public Task<Department?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+        return _dbContext.Departments.SingleOrDefaultAsync(d => d.Id == id, cancellationToken);
+    }
+
+    public void Add(Department department)
+    {
+        _dbContext.Departments.Add(department);
     }
 
     // 依代碼排序：代碼唯一，所以順序固定，而且對人有意義。
@@ -31,7 +47,8 @@ internal sealed class DepartmentRepository : IDepartmentRepository
             .Select(d => new DepartmentSummary(
                 d.Id,
                 d.Code,
-                d.Name))
+                d.Name,
+                d.IsActive))
             .ToListAsync(cancellationToken);
     }
 }

@@ -20,10 +20,14 @@ export class ApiError extends Error {
 //   fetch 有收到回應，所以不是 NetworkError
 // - 其他 5xx：後端的 ProblemDetails 是框架的英文預設值（"An error occurred while processing your request."），
 //   不能顯示；保留狀態碼，民眾回報時客服才知道是哪一種錯誤
+// - 403：授權失敗沒有 ProblemDetails，不能顯示「請稍後再試」（再試幾次都一樣）
 // - 4xx：用後端的說明（Domain 的錯誤訊息是中文的 detail）
 function messageFor(status: number, problem: ProblemDetails | null): string {
   if (status === 502 || status === 503 || status === 504) {
     return '系統暫時無法使用，請稍後再試'
+  }
+  if (status === 403 && problem === null) {
+    return '您沒有權限使用這個功能'
   }
   if (status >= 500) {
     return `系統發生錯誤（HTTP ${status}），請稍後再試`

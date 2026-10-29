@@ -1,3 +1,4 @@
+using CaseTrack.Application.Auditing;
 using CaseTrack.Application.Cases;
 using CaseTrack.Application.Departments;
 using CaseTrack.Application.Reports;
@@ -28,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<GetMyCaseHandler>();
         services.AddScoped<GetAttachmentHandler>();
         services.AddScoped<ListDepartmentsHandler>();
+        services.AddScoped<ManageDepartmentsHandler>();
+        services.AddScoped<AuditLogHandler>();
         return services;
     }
 }

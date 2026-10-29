@@ -67,11 +67,33 @@ export interface Me {
   departmentId: string | null
 }
 
-// GET /api/departments
+// GET /api/departments（包含停用的：舊案件要能顯示單位名稱；分派的選單只列啟用中的）
 export interface Department {
   id: string
   code: string
   name: string
+  isActive: boolean
+}
+
+// ── 管理者 /api/admin ─────────────────────────────────
+
+// 稽核紀錄的一個欄位。hidden = true：管理者不能看的欄位（案件內容、個資），後端只告訴你「這個欄位被改了」，值是 null
+export interface AuditFieldChange {
+  field: string
+  old: string | null
+  new: string | null
+  hidden: boolean
+}
+
+// GET /api/admin/audit-entries。action 是 Added、Modified、Deleted
+export interface AuditEntrySummary {
+  id: number
+  entityType: string
+  entityId: string
+  action: string
+  changes: AuditFieldChange[]
+  changedBy: string
+  changedAt: string
 }
 
 // ── 承辦端 /api/cases ─────────────────────────────────

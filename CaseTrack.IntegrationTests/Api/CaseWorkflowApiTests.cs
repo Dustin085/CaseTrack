@@ -206,10 +206,4 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
     {
         return client.PostAsync($"api/cases/{caseId}/{action}", null, TestContext.Current.CancellationToken);
     }
-
-    private static async Task AssertNoContentAsync(Task<HttpResponseMessage> request)
-    {
-        var response = await request;
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-    }
 }

@@ -2,11 +2,12 @@
 
 namespace CaseTrack.Application.Departments;
 
-// 單位清單：分派時的下拉選單、列表用 DepartmentId 對照單位名稱
+// 單位清單：分派時的下拉選單（只列啟用中的）、列表用 DepartmentId 對照單位名稱（停用的也要對照得到）
 public sealed record DepartmentSummary(
     Guid Id,
     string Code,
-    string Name);
+    string Name,
+    bool IsActive);
 
 public sealed class ListDepartmentsHandler
 {

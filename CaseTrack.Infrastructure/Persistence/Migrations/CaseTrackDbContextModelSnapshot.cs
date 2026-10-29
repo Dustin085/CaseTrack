@@ -197,6 +197,9 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("nvarchar(10)");
 
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -214,18 +217,21 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                         {
                             Id = new Guid("f3c0543e-db7c-464b-8016-d71088ef6b83"),
                             Code = "PWD",
+                            IsActive = true,
                             Name = "工務局"
                         },
                         new
                         {
                             Id = new Guid("05e97217-8eee-4551-8ff5-5bd9cb1762d0"),
                             Code = "ENV",
+                            IsActive = true,
                             Name = "環境保護局"
                         },
                         new
                         {
                             Id = new Guid("2f0c5ba0-9486-44b7-ab5b-a7032e4dc493"),
                             Code = "TRA",
+                            IsActive = true,
                             Name = "交通局"
                         });
                 });
@@ -266,6 +272,8 @@ namespace CaseTrack.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ChangedAt");
 
                     b.HasIndex("EntityType", "EntityId");
 

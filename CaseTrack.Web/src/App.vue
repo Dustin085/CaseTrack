@@ -3,7 +3,7 @@ import { watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 
-const { me, isLoggedIn, isCitizen, isStaff, logout } = useAuth()
+const { me, isLoggedIn, isCitizen, isStaff, isAdmin, logout } = useAuth()
 const router = useRouter()
 const route = useRoute()
 
@@ -27,6 +27,10 @@ watch(isLoggedIn, (loggedIn) => {
       <template v-if="isCitizen">
         <RouterLink to="/my/cases">我的案件</RouterLink>
         <RouterLink to="/my/cases/new">我要陳情</RouterLink>
+      </template>
+      <template v-if="isAdmin">
+        <RouterLink to="/admin/departments">單位管理</RouterLink>
+        <RouterLink to="/admin/audit-entries">稽核紀錄</RouterLink>
       </template>
     </nav>
     <div class="user">

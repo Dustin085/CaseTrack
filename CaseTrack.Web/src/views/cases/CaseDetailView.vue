@@ -26,7 +26,7 @@ import { computed, ref, watch } from 'vue'
 // 能做哪些動作由後端的 allowedActions 決定，前端不自己判斷角色和狀態
 const props = defineProps<{ id: string }>()
 
-const { departments, departmentName } = useDepartments()
+const { activeDepartments, departmentName } = useDepartments()
 
 // 交給案件的附件與補件紀錄的 AttachmentList（定義一次，不在模板裡寫兩次箭頭函式）
 function downloadPath(attachment: AttachmentDetails): string {
@@ -361,7 +361,7 @@ const shownPetitioner = computed(() => fullPetitioner.value ?? caseDetail.value?
           <label for="assign-department">分派到</label>
           <select id="assign-department" v-model="selectedDepartmentId">
             <option value="" disabled>請選擇單位</option>
-            <option v-for="d in departments" :key="d.id" :value="d.id">{{ d.name }}</option>
+            <option v-for="d in activeDepartments" :key="d.id" :value="d.id">{{ d.name }}</option>
           </select>
           <button type="submit" :disabled="assigning || selectedDepartmentId === ''">
             {{ assigning ? '分派中…' : caseDetail.departmentId ? '改派' : '分派' }}

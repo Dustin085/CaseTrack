@@ -6,6 +6,8 @@ import { computed, ref } from 'vue'
 // 寫在函式外面：全 app 共用一份，單位很少變動，載入一次就好（換頁不用重新載入）
 const departments = ref<Department[]>([])
 const names = computed(() => new Map(departments.value.map((d) => [d.id, d.name])))
+// 分派的選單只列啟用中的；停用的單位仍然要能對照名稱（舊案件），所以 departments 保留全部
+const activeDepartments = computed(() => departments.value.filter((d) => d.isActive))
 
 // 進行中的請求：同時有多個元件呼叫 useDepartments()，只送一次
 let loading: Promise<void> | null = null
@@ -41,5 +43,5 @@ function departmentName(departmentId: string | null): string {
 
 export function useDepartments() {
   ensureLoaded()
-  return { departments, departmentName }
+  return { departments, activeDepartments, departmentName }
 }

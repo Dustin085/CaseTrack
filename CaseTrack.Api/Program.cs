@@ -83,13 +83,14 @@ builder.Services
         };
     });
 
-// 授權的第 1 層：角色。管理者不在任何一個 policy 裡（最小權限），呼叫案件的端點都是 403
+// 授權的第 1 層：角色。管理者只有 Administrator 這個 policy（最小權限），呼叫案件的端點都是 403
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.CaseReader, policy => policy.RequireRole(Roles.CaseReaders))
     .AddPolicy(Policies.CaseHandler, policy => policy.RequireRole(Roles.CaseHandlers))
     .AddPolicy(Policies.ClosingApprover, policy => policy.RequireRole(Roles.ClosingApprovers))
     .AddPolicy(Policies.CaseDispatcher, policy => policy.RequireRole(Roles.CaseDispatchers))
-    .AddPolicy(Policies.Citizen, policy => policy.RequireRole(Roles.Citizen));
+    .AddPolicy(Policies.Citizen, policy => policy.RequireRole(Roles.Citizen))
+    .AddPolicy(Policies.Administrator, policy => policy.RequireRole(Roles.Administrator));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();

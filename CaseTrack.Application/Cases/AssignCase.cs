@@ -32,9 +32,10 @@ public sealed class AssignCaseHandler
         // 單位是請求內容裡的資料，不存在是「送來的資料有問題」→ 400，不是 404（404 是網址裡的案件不存在）。
         // 外鍵仍然保留：查詢和存檔之間單位被刪掉的話，由資料庫擋下（最後一道防線）。
         // 欄位名稱跟 [ApiController] 驗證 AssignCaseRequest 時一致，前端只要對應一個 key
-        if (!await _departmentRepository.ExistsAsync(departmentId, cancellationToken))
+        // 停用的單位也不能分派（管理者停用後，畫面上的選單可能還沒更新）
+        if (!await _departmentRepository.IsActiveAsync(departmentId, cancellationToken))
         {
-            throw new RequestValidationException("DepartmentId", "單位不存在");
+            throw new RequestValidationException("DepartmentId", "單位不存在或已停用");
         }
 
         @case.AssignTo(departmentId);

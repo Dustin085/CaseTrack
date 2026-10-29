@@ -72,15 +72,33 @@ const isLoggedIn = computed(() => token.value !== null)
 // satisfies：檢查每個值都是 Role（打錯字會編譯失敗），但型別維持字串陣列，才能拿 me.roles 的 string 來比對
 const STAFF_ROLES: readonly string[] = ['CaseOfficer', 'Supervisor', 'Dispatcher'] satisfies Role[]
 const CITIZEN: Role = 'Citizen'
+const ADMINISTRATOR: Role = 'Administrator'
 
 const isCitizen = computed(() => me.value?.roles.includes(CITIZEN) ?? false)
 const isStaff = computed(() => me.value?.roles.some((r) => STAFF_ROLES.includes(r)) ?? false)
-// 登入後的首頁：承辦端優先（承辦人自己也陳情時，平常主要的工作在承辦端）
-const homePath = computed(() => (isStaff.value ? '/cases' : '/my/cases'))
+const isAdmin = computed(() => me.value?.roles.includes(ADMINISTRATOR) ?? false)
+// 登入後的首頁：承辦端優先（承辦人自己也陳情時，平常主要的工作在承辦端）。
+// 管理者沒有案件的權限，不能落到 /my/cases（民眾的頁面，後端會回 403）
+const homePath = computed(() => {
+  if (isStaff.value) {
+    return '/cases'
+  }
+  return isAdmin.value ? '/admin/departments' : '/my/cases'
+})
 
 export function useAuth() {
   // readonly：狀態只能透過 login、logout 修改，元件改 me.value 時 TypeScript 會報錯
-  return { me: readonly(me), isLoggedIn, isCitizen, isStaff, homePath, login, logout, loadMe }
+  return {
+    me: readonly(me),
+    isLoggedIn,
+    isCitizen,
+    isStaff,
+    isAdmin,
+    homePath,
+    login,
+    logout,
+    loadMe,
+  }
 }
 
 // 給 apiFetch 用：每次呼叫 API 時讀取目前的 token。

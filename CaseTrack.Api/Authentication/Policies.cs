@@ -10,4 +10,5 @@ public static class Policies
     public const string ClosingApprover = "ClosingApprover";  // 核定或退回結案：主管
     public const string CaseDispatcher = "CaseDispatcher";    // 分派、不予受理：分派人員
     public const string Citizen = "Citizen";                  // 民眾端（送件、補件、查自己的案件）：民眾
+    public const string Administrator = "Administrator";      // 系統管理（單位、稽核紀錄）：管理者
 }

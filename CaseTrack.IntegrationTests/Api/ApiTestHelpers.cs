@@ -99,6 +99,13 @@ internal static class ApiTestHelpers
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
+    // 沒有回應內容的動作（受理、核定、停用單位⋯）成功 → 204
+    public static async Task AssertNoContentAsync(Task<HttpResponseMessage> request)
+    {
+        var response = await request;
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+    }
+
     // 驗證失敗 → 400 ProblemDetails，而且 errors 裡指出是哪個欄位。
     // 同一個欄位可能因為不同原因失敗（例如沒填、不存在），要確定是哪一個原因時，傳入 expectedMessage
     public static async Task AssertValidationProblemAsync(

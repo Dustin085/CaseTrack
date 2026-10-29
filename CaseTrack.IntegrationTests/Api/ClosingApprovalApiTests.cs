@@ -181,10 +181,4 @@ public class ClosingApprovalApiTests : IClassFixture<CaseTrackApiFactory>
 
     private static Task<HttpResponseMessage> PostAsync(HttpClient client, Guid caseId, string action) =>
         client.PostAsync($"api/cases/{caseId}/{action}", null, TestContext.Current.CancellationToken);
-
-    private static async Task AssertNoContentAsync(Task<HttpResponseMessage> request)
-    {
-        var response = await request;
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-    }
 }

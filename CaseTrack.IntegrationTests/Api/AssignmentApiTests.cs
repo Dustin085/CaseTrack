@@ -81,11 +81,11 @@ public class AssignmentApiTests : IClassFixture<CaseTrackApiFactory>
 
         var response = await _dispatcherClient.PostAssignmentAsync(submitted.Id, Guid.NewGuid());
 
-        await AssertValidationProblemAsync(response, "DepartmentId", "單位不存在");
+        await AssertValidationProblemAsync(response, "DepartmentId", "單位不存在或已停用");
     }
 
     // DTO 用 Guid? + [Required]：寫成 Guid 的話，沒填會變成 Guid.Empty 繞過 [Required]，
-    // 雖然 Handler 查不到單位也會回 400，但訊息會變成「單位不存在」，使用者會以為是選錯了單位
+    // 雖然 Handler 查不到單位也會回 400，但訊息會變成「單位不存在或已停用」，使用者會以為是選錯了單位
     [Fact]
     public async Task AssignCase_WithoutDepartmentId_ReturnsValidationProblemForDepartmentId()
     {

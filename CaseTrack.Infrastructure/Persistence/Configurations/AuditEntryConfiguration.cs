@@ -23,5 +23,7 @@ public class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEntry>
 
         // 最常見的查詢：「某一筆資料的所有異動紀錄」
         builder.HasIndex(a => new { a.EntityType, a.EntityId });
+        // 管理者的稽核查詢預設依時間新到舊、可以篩期間
+        builder.HasIndex(a => a.ChangedAt);
     }
 }
