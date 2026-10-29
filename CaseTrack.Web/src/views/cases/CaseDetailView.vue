@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ApiError } from '@/api/client'
 import {
+  approveClosing,
   assignCase,
   attachmentPath,
   closeCase,
@@ -9,6 +10,7 @@ import {
   getPetitioner,
   rejectCase,
   requestSupplement,
+  returnClosing,
   reviewCase,
 } from '@/api/cases'
 import type { AttachmentDetails, CaseAction, CaseDetails, PetitionerDetails } from '@/api/types'
@@ -135,6 +137,23 @@ async function handleReview() {
   }
 }
 
+// 核定結案（主管）：核定後民眾就看得到結案回覆，先確認一次
+const approving = ref(false)
+async function handleApproveClosing() {
+  if (approving.value || !window.confirm('確定要核定結案嗎？核定後民眾會看到結案回覆')) {
+    return
+  }
+  approving.value = true
+  try {
+    await perform(() => approveClosing(props.id), '已核定結案')
+  } catch (e) {
+    // 例如自己送出的結案不能自己核定：後端的 409 會在 perform 裡重新載入，其他錯誤顯示在這裡
+    actionNotice.value = e instanceof Error ? e.message : '核定時發生錯誤'
+  } finally {
+    approving.value = false
+  }
+}
+
 // 分派（分派人員）：選單位、送出。只有這裡用到，所以直接寫在頁面裡，不另外抽成元件。
 // 已送件的案件可以改派：預設選目前的單位，改派時不用重新找
 const selectedDepartmentId = ref('')
@@ -231,9 +250,16 @@ const shownPetitioner = computed(() => fullPetitioner.value ?? caseDetail.value?
       <AttachmentList :attachments="caseDetail.attachments" :download-path="downloadPath" />
     </section>
 
+    <!-- 待核定時的回覆還沒生效（主管可能退回），標題要分清楚；民眾端在核定前看不到 -->
     <section v-if="caseDetail.closingReply" class="card">
-      <h2>結案回覆</h2>
+      <h2>{{ caseDetail.status === 'PendingApproval' ? '結案回覆（待主管核定）' : '結案回覆' }}</h2>
       <p class="multiline">{{ caseDetail.closingReply }}</p>
+    </section>
+
+    <!-- 只在審核中顯示：重新送出結案後，後端就清掉了，不會一直留著 -->
+    <section v-if="caseDetail.closingReturnReason" class="card returned">
+      <h2>主管退回結案的原因</h2>
+      <p class="multiline">{{ caseDetail.closingReturnReason }}</p>
     </section>
 
     <section v-if="caseDetail.rejectionReason" class="card">
@@ -300,12 +326,28 @@ const shownPetitioner = computed(() => fullPetitioner.value ?? caseDetail.value?
           :maxlength="500"
           :submit="(reason: string) => perform(() => requestSupplement(id, reason), '已要求補件')"
         />
+        <!-- 送出後是「待核定」，主管核定才結案，按鈕和訊息都不能說「已結案」 -->
         <ActionWithReason
           v-if="can('Close')"
-          label="結案"
-          field-label="結案回覆（民眾會看到）"
+          label="送出結案"
+          field-label="結案回覆（主管核定後民眾會看到）"
           :maxlength="2000"
-          :submit="(reply: string) => perform(() => closeCase(id, reply), '已結案')"
+          :submit="(reply: string) => perform(() => closeCase(id, reply), '已送出結案，待主管核定')"
+        />
+        <button
+          v-if="can('ApproveClosing')"
+          type="button"
+          :disabled="approving"
+          @click="handleApproveClosing"
+        >
+          {{ approving ? '核定中…' : '核定結案' }}
+        </button>
+        <ActionWithReason
+          v-if="can('ReturnClosing')"
+          label="退回結案"
+          field-label="退回原因（承辦人會看到）"
+          :maxlength="500"
+          :submit="(reason: string) => perform(() => returnClosing(id, reason), '已退回結案')"
         />
         <ActionWithReason
           v-if="can('Reject')"
@@ -382,6 +424,9 @@ dd {
   border-radius: 999px;
   background: #eceef1;
   color: var(--color-muted);
+}
+.returned {
+  border-left: 4px solid var(--color-warning-border);
 }
 .petitioner.revealed {
   border: 2px solid var(--color-warning-border);

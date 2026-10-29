@@ -30,6 +30,12 @@ const requests: DevTokenRequest[] = [
     departmentId: 'f3c0543e-db7c-464b-8016-d71088ef6b83',
   },
   {
+    userId: 'e5a4d2c8-71b3-4f96-9c0e-3d8b2a6f1e47',
+    name: '工務局主管',
+    roles: ['Supervisor'],
+    departmentId: 'f3c0543e-db7c-464b-8016-d71088ef6b83',
+  },
+  {
     userId: '4d7b1e93-a526-4c80-9f34-2b8e6d1a705c',
     name: '分派人員',
     roles: ['Dispatcher'],

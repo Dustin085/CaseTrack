@@ -72,8 +72,19 @@ export function requestSupplement(id: string, reason: string): Promise<void> {
   })
 }
 
+// 送出結案：不會直接結案，案件變成待核定，主管核定後才結案（民眾才看得到回覆）
 export function closeCase(id: string, reply: string): Promise<void> {
   return apiFetch<void>(`/api/cases/${id}/close`, { method: 'POST', body: { reply } })
+}
+
+// 主管：核定結案。不能核定自己送出的（409）
+export function approveClosing(id: string): Promise<void> {
+  return apiFetch<void>(`/api/cases/${id}/closing-approval`, { method: 'POST' })
+}
+
+// 主管：退回結案，案件回到審核中，承辦人修改後重新送出
+export function returnClosing(id: string, reason: string): Promise<void> {
+  return apiFetch<void>(`/api/cases/${id}/closing-return`, { method: 'POST', body: { reason } })
 }
 
 // 承辦單位審核後退件

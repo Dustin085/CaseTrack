@@ -87,6 +87,7 @@ builder.Services
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(Policies.CaseReader, policy => policy.RequireRole(Roles.CaseReaders))
     .AddPolicy(Policies.CaseHandler, policy => policy.RequireRole(Roles.CaseHandlers))
+    .AddPolicy(Policies.ClosingApprover, policy => policy.RequireRole(Roles.ClosingApprovers))
     .AddPolicy(Policies.CaseDispatcher, policy => policy.RequireRole(Roles.CaseDispatchers))
     .AddPolicy(Policies.Citizen, policy => policy.RequireRole(Roles.Citizen));
 

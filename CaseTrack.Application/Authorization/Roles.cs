@@ -22,6 +22,11 @@ public static class Roles
     public static readonly IReadOnlySet<string> CaseHandlers =
         new HashSet<string> { CaseOfficer, Supervisor }.ToFrozenSet();
 
+    // 核定或退回承辦人送出的結案（Policy：ClosingApprover）。主管同時也在 CaseHandlers（可以自己承辦），
+    // 但不能核定自己送出的結案（Domain 的 SelfApprovalNotAllowedException）
+    public static readonly IReadOnlySet<string> ClosingApprovers =
+        new HashSet<string> { Supervisor }.ToFrozenSet();
+
     // 分派、不予受理（Policy：CaseDispatcher）
     public static readonly IReadOnlySet<string> CaseDispatchers =
         new HashSet<string> { Dispatcher }.ToFrozenSet();

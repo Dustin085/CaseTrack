@@ -15,7 +15,10 @@ public sealed record CaseDetails(
     DateTimeOffset SubmittedAt,
     Guid? DepartmentId,
     string? RejectionReason,
+    // 待核定時是送出的結案回覆（主管要看過才能核定），已結案時是正式的回覆
     string? ClosingReply,
+    // 主管最近一次退回結案的原因：承辦人修改時要看到
+    string? ClosingReturnReason,
     PetitionerDetails Petitioner,
     // 送件時附的；補件附的放在各自的 SupplementRequests 裡
     IReadOnlyList<AttachmentDetails> Attachments,
@@ -79,6 +82,7 @@ public sealed class GetCaseHandler
             @case.DepartmentId,
             @case.RejectionReason,
             @case.ClosingReply,
+            @case.ClosingReturnReason,
             ToMaskedDetails(@case.Petitioner),
             AttachmentDetails.ListFor(@case.Attachments, supplementRequestId: null),
             SupplementRequestDetails.ListFor(@case),

@@ -65,6 +65,31 @@ public sealed class CasesController : ControllerBase
         return NoContent();
     }
 
+    // 主管核定承辦人送出的結案（/close 只是送出，核定後才結案）
+    [Authorize(Policy = Policies.ClosingApprover)]
+    [HttpPost("{id:guid}/closing-approval")]
+    public async Task<ActionResult> ApproveClosing(
+        [FromRoute] Guid id,
+        [FromServices] ReviewClosingHandler handler,
+        CancellationToken cancellationToken)
+    {
+        await handler.ApproveAsync(id, cancellationToken);
+        return NoContent();
+    }
+
+    // 主管退回結案：回到審核中，承辦人修改後重新送出
+    [Authorize(Policy = Policies.ClosingApprover)]
+    [HttpPost("{id:guid}/closing-return")]
+    public async Task<ActionResult> ReturnClosing(
+        [FromRoute] Guid id,
+        [FromBody] ReturnClosingRequest request,
+        [FromServices] ReviewClosingHandler handler,
+        CancellationToken cancellationToken)
+    {
+        await handler.ReturnAsync(id, request.Reason, cancellationToken);
+        return NoContent();
+    }
+
     // 承辦單位審核後退件。分派人員一收到就不受理的情況，用 /dismissal
     [Authorize(Policy = Policies.CaseHandler)]
     [HttpPost("{id:guid}/reject")]

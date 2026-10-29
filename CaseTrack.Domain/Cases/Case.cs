@@ -16,7 +16,10 @@ public class Case
     public IReadOnlyCollection<Attachment> Attachments => _attachments.AsReadOnly();
     public string? RejectionReason { get; private set; }
     public Guid? DepartmentId { get; private set; } // null = 待分派
-    public string? ClosingReply { get; private set; } // 結案回覆，還沒結案時是 null
+    // 結案回覆：送出結案時寫入，主管核定前民眾看不到（由 Application 的民眾 DTO 過濾）；被主管退回時清掉
+    public string? ClosingReply { get; private set; }
+    public string? ClosingSubmittedBy { get; private set; } // 送出結案的人（token 的 sub），用來擋自己核定自己
+    public string? ClosingReturnReason { get; private set; } // 主管最近一次退回的原因，再次送出結案時清掉
     public string SubmittedBy { get; private set; }   // 送件民眾的使用者 Id（token 的 sub）
     public DateTimeOffset SubmittedAt { get; private set; }
 
@@ -25,7 +28,9 @@ public class Case
     private bool IsAwaitingReview => Status == CaseStatus.Submitted;
     public bool CanStartReview => IsAwaitingReview && DepartmentId is not null;
     public bool CanRequestSupplement => Status == CaseStatus.UnderReview;
-    public bool CanClose => Status == CaseStatus.UnderReview;
+    public bool CanSubmitForClosing => Status == CaseStatus.UnderReview;
+    public bool CanApproveClosing => Status == CaseStatus.PendingApproval;
+    public bool CanReturnClosing => Status == CaseStatus.PendingApproval;
     public bool CanReject => Status is CaseStatus.Submitted
         or CaseStatus.UnderReview
         or CaseStatus.AwaitingSupplement;
@@ -123,16 +128,55 @@ public class Case
         return added;
     }
 
-    public void Close(string reply)
+    // 承辦人送出結案：不會直接結案，要等主管核定。
+    // 待核定時不能退件、要求補件（CanReject 等不含這個狀態）：主管要先退回，案件回到審核中再處理
+    public void SubmitForClosing(string reply, string submittedBy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reply);
-        if (!CanClose)
+        ArgumentException.ThrowIfNullOrWhiteSpace(submittedBy);
+        if (!CanSubmitForClosing)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.PendingApproval);
+        }
+
+        ClosingReply = reply;
+        ClosingSubmittedBy = submittedBy;
+        ClosingReturnReason = null;
+        Status = CaseStatus.PendingApproval;
+    }
+
+    // 主管核定：結案生效，民眾才看得到結案回覆。
+    // 先檢查狀態再檢查是不是本人：狀態不對時，不管是誰都不能核定
+    public void ApproveClosing(string approvedBy)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(approvedBy);
+        if (!CanApproveClosing)
         {
             throw new InvalidCaseStatusTransitionException(Status, CaseStatus.Closed);
         }
 
-        ClosingReply = reply;
+        if (approvedBy == ClosingSubmittedBy)
+        {
+            throw new SelfApprovalNotAllowedException();
+        }
+
         Status = CaseStatus.Closed;
+    }
+
+    // 主管退回：回到審核中，承辦人修改後重新送出。
+    // 清掉結案回覆，維持「ClosingReply 有值 = 待核定或已結案」；退回前的內容留在稽核紀錄裡
+    public void ReturnClosing(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (!CanReturnClosing)
+        {
+            throw new InvalidCaseStatusTransitionException(Status, CaseStatus.UnderReview);
+        }
+
+        ClosingReturnReason = reason;
+        ClosingReply = null;
+        ClosingSubmittedBy = null;
+        Status = CaseStatus.UnderReview;
     }
 
     public void Reject(string reason)

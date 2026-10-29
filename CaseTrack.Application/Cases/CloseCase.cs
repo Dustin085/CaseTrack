@@ -5,6 +5,7 @@ using CaseTrack.Domain.Cases;
 
 namespace CaseTrack.Application.Cases;
 
+// 承辦人送出結案：案件變成待核定，主管核定後才結案（ApproveClosingHandler）
 public sealed class CloseCaseHandler
 {
     private readonly ICaseRepository _caseRepository;
@@ -22,7 +23,7 @@ public sealed class CloseCaseHandler
     {
         var @case = await _caseRepository.GetByIdAsync(caseId, CaseAccessScope.For(_currentUser), cancellationToken)
             ?? throw new NotFoundException(nameof(Case), caseId);
-        @case.Close(reply);
+        @case.SubmitForClosing(reply, _currentUser.UserId);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

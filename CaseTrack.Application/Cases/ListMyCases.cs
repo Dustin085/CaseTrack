@@ -17,8 +17,16 @@ public sealed class ListMyCasesHandler
         _currentUser = currentUser;
     }
 
-    public Task<PagedResult<CaseSummary>> HandleAsync(CaseListQuery query, CancellationToken cancellationToken)
+    // 狀態換成民眾看到的（待核定 → 審核中）。
+    // 已知限制：依狀態篩選時，篩「審核中」不會包含待核定的案件（民眾端畫面目前沒有狀態篩選）
+    public async Task<PagedResult<CaseSummary>> HandleAsync(CaseListQuery query, CancellationToken cancellationToken)
     {
-        return _caseRepository.ListAsync(query, CaseAccessScope.ForPetitioner(_currentUser.UserId), cancellationToken);
+        var result = await _caseRepository.ListAsync(
+            query, CaseAccessScope.ForPetitioner(_currentUser.UserId), cancellationToken);
+
+        return result with
+        {
+            Items = result.Items.Select(c => c with { Status = CitizenStatus.Of(c.Status) }).ToList(),
+        };
     }
 }

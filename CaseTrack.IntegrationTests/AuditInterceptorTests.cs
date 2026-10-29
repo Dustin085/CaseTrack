@@ -145,7 +145,7 @@ public class AuditInterceptorTests
             .SaveChangesAsync(cancellationToken);
 
         // Act：第二個請求拿著舊的 RowVersion 存檔
-        secondLoad.Close("已派員修復");
+        secondLoad.SubmitForClosing("已派員修復", "u-officer");
         await Assert.ThrowsAsync<ConcurrencyConflictException>(
             () => secondScope.ServiceProvider.GetRequiredService<IUnitOfWork>()
                 .SaveChangesAsync(cancellationToken));

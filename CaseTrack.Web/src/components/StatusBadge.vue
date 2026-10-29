@@ -32,6 +32,10 @@ defineProps<{ status: CaseStatus }>()
   background: #fde8e8;
   color: #9b1c1c;
 }
+.PendingApproval {
+  background: #ede9fe;
+  color: #5b21b6;
+}
 .Closed {
   background: #e6f4ea;
   color: #1b6e3c;

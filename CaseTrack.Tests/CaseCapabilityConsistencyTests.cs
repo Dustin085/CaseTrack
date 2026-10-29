@@ -22,10 +22,17 @@ public class CaseCapabilityConsistencyTests
             @case.RequestSupplement("請補照片", Now);
             return @case;
         },
+        ["待核定"] = () =>
+        {
+            var @case = UnderReview();
+            @case.SubmitForClosing("已處理", "u-officer");
+            return @case;
+        },
         ["已結案"] = () =>
         {
             var @case = UnderReview();
-            @case.Close("已處理");
+            @case.SubmitForClosing("已處理", "u-officer");
+            @case.ApproveClosing("u-supervisor");
             return @case;
         },
         ["已退件"] = () =>
@@ -42,7 +49,10 @@ public class CaseCapabilityConsistencyTests
         ["StartReview"] = (c => c.CanStartReview, c => c.StartReview()),
         ["RequestSupplement"] = (c => c.CanRequestSupplement, c => c.RequestSupplement("請補照片", Now)),
         ["SubmitSupplement"] = (c => c.CanSubmitSupplement, c => c.SubmitSupplement("已補上照片", Now, [])),
-        ["Close"] = (c => c.CanClose, c => c.Close("已處理")),
+        ["SubmitForClosing"] = (c => c.CanSubmitForClosing, c => c.SubmitForClosing("已處理", "u-officer")),
+        // 核定的人跟送出的人不同：自己核定自己是另一條規則（SelfApprovalNotAllowedException），不是狀態的問題
+        ["ApproveClosing"] = (c => c.CanApproveClosing, c => c.ApproveClosing("u-supervisor")),
+        ["ReturnClosing"] = (c => c.CanReturnClosing, c => c.ReturnClosing("回覆要再具體一點")),
         ["Reject"] = (c => c.CanReject, c => c.Reject("非本單位業務")),
         ["Dismiss"] = (c => c.CanDismiss, c => c.Dismiss("不屬本府權責")),
         ["Assign"] = (c => c.CanAssign, c => c.AssignTo(Guid.NewGuid())),

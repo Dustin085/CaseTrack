@@ -9,19 +9,22 @@ namespace CaseTrack.IntegrationTests.Api;
 
 // 透過 HTTP 測整個 API：路由、模型繫結、驗證、例外處理、JSON 序列化都會經過。
 // 站在外部使用者的角度：請求用匿名型別，狀態比對字串（API 的合約），不依賴 Domain 的型別。
-// 用三個 client 代表三種實際的使用者：民眾（送件、補件、查看結果）、分派人員（分派）、工務局的承辦人（處理案件）。
+// 用四個 client 代表實際的使用者：民眾（送件、補件、查看結果）、分派人員（分派）、工務局的承辦人（處理案件）、
+// 工務局主管（核定結案）。
 [Collection(nameof(DatabaseCollection))]
 public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
 {
     private readonly HttpClient _citizenClient;
     private readonly HttpClient _dispatcherClient;
     private readonly HttpClient _officerClient;
+    private readonly HttpClient _supervisorClient;
 
     public CaseWorkflowApiTests(CaseTrackApiFactory factory)
     {
         _citizenClient = factory.CreateCitizenClient();
         _dispatcherClient = factory.CreateDispatcherClient();
         _officerClient = factory.CreateOfficerClient();
+        _supervisorClient = factory.CreateSupervisorClient();
     }
 
     [Fact]
@@ -46,6 +49,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         await AssertNoContentAsync(_citizenClient.PostSupplementAsync(submitted.Id, SupplementForm("已補上現場照片的說明")));
         await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
             $"api/cases/{submitted.Id}/close", new { reply = "已派員修復路燈" }, cancellationToken));
+        await AssertNoContentAsync(PostActionAsync(_supervisorClient, submitted.Id, "closing-approval"));
 
         // 民眾用 Location 取回案件：證明 Location 指向的是民眾自己查得到的網址，而且看得到處理結果
         var details = await _citizenClient.GetFromJsonAsync<CitizenCaseDetails>(location, JsonOptions, cancellationToken);
@@ -107,6 +111,7 @@ public class CaseWorkflowApiTests : IClassFixture<CaseTrackApiFactory>
         await AssertNoContentAsync(PostActionAsync(_officerClient, submitted.Id, "review"));
         await AssertNoContentAsync(_officerClient.PostAsJsonAsync(
             $"api/cases/{submitted.Id}/close", new { reply = "已派員修復路燈" }, cancellationToken));
+        await AssertNoContentAsync(PostActionAsync(_supervisorClient, submitted.Id, "closing-approval"));
 
         var response = await PostActionAsync(_officerClient, submitted.Id, "review");
 

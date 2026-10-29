@@ -1,3 +1,4 @@
+using CaseTrack.Application.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
@@ -23,6 +24,10 @@ public class CaseTrackApiFactory : WebApplicationFactory<Program>
 
     // 工務局的承辦人
     public HttpClient CreateOfficerClient() => CreateClient().WithBearerToken(TestTokens.CreateOfficerToken());
+
+    // 工務局主管（核定結案）。userId 可以指定：要測「主管自己送出、自己核定」時用同一個 userId
+    public HttpClient CreateSupervisorClient(string userId = TestTokens.SupervisorUserId) =>
+        CreateClientFor(userId, [Roles.Supervisor], TestTokens.OfficerDepartmentId);
 
     // 分派人員
     public HttpClient CreateDispatcherClient() => CreateClient().WithBearerToken(TestTokens.CreateDispatcherToken());

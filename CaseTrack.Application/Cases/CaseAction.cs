@@ -8,9 +8,13 @@ public enum CaseAction
     // 承辦人、主管（Roles.CaseHandlers）
     Review,
     RequestSupplement,
-    Close,
+    Close, // 送出結案（待主管核定），名稱沿用以維持 API 合約
     Reject,
     ViewPetitioner,
+
+    // 主管（Roles.ClosingApprovers）
+    ApproveClosing,
+    ReturnClosing,
 
     // 分派人員（Roles.CaseDispatchers）
     Assign,

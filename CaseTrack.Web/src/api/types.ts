@@ -7,6 +7,7 @@ export const CASE_STATUSES = [
   'Submitted',
   'UnderReview',
   'AwaitingSupplement',
+  'PendingApproval', // 承辦人送出結案，等主管核定（民眾端看到的是 UnderReview）
   'Closed',
   'Rejected',
 ] as const
@@ -24,6 +25,8 @@ export const CASE_ACTIONS = [
   'Close',
   'Reject',
   'ViewPetitioner',
+  'ApproveClosing',
+  'ReturnClosing',
   'Assign',
   'Dismiss',
 ] as const
@@ -82,7 +85,8 @@ export interface CaseDetails {
   status: CaseStatus
   submittedAt: string
   rejectionReason: string | null
-  closingReply: string | null
+  closingReply: string | null // 待核定時是送出的回覆，已結案時是正式的回覆
+  closingReturnReason: string | null // 主管最近一次退回結案的原因
   petitioner: PetitionerDetails // 遮罩過的（王*明）
   attachments: AttachmentDetails[]
   supplementRequests: SupplementRequestDetails[]

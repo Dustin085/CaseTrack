@@ -24,6 +24,9 @@ public class CaseConfiguration : IEntityTypeConfiguration<Case>
 
         builder.Property(c => c.RejectionReason).HasMaxLength(500);
         builder.Property(c => c.ClosingReply).HasMaxLength(2000);
+        builder.Property(c => c.ClosingReturnReason).HasMaxLength(500);
+        // 長度跟 SubmittedBy、稽核的 ChangedBy 一致
+        builder.Property(c => c.ClosingSubmittedBy).HasMaxLength(100);
 
         // 長度跟稽核的 ChangedBy 一致；民眾查「我的案件」用它過濾，所以加索引
         builder.Property(c => c.SubmittedBy).HasMaxLength(100);

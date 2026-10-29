@@ -198,7 +198,7 @@ public class CasePersistenceTests
         await using var secondContext = _fixture.CreateContext();
         var secondLoaded = await secondContext.Cases
             .SingleAsync(c => c.Id == @case.Id, cancellationToken);
-        secondLoaded.Close("已派員修復");
+        secondLoaded.SubmitForClosing("已派員修復", "u-officer");
         await ((IUnitOfWork)firstContext).SaveChangesAsync(cancellationToken);
 
         // Assert

@@ -23,6 +23,9 @@ internal static class TestTokens
     public const string OfficerUserId = "u-officer-1";
     public static readonly Guid OfficerDepartmentId = DepartmentSeed.PublicWorks;
 
+    // 工務局主管（跟承辦人同一個單位）
+    public const string SupervisorUserId = "u-supervisor-1";
+
     // 分派人員不屬於任何承辦單位
     public const string DispatcherUserId = "u-dispatcher-1";
 

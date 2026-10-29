@@ -7,6 +7,7 @@ export const caseStatusLabels: Record<CaseStatus, string> = {
   Submitted: '已送件',
   UnderReview: '審核中',
   AwaitingSupplement: '補件中',
+  PendingApproval: '待核定',
   Closed: '已結案',
   Rejected: '已退件',
 }

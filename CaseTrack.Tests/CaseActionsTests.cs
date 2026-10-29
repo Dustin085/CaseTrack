@@ -44,11 +44,41 @@ public class CaseActionsTests
     public void AllowedFor_OfficerOnClosedCase_ReturnsViewPetitionerOnly()
     {
         var @case = UnderReview();
-        @case.Close("已處理");
+        @case.SubmitForClosing("已處理", "u-officer");
+        @case.ApproveClosing("u-supervisor");
 
         var actions = CaseActions.AllowedFor(@case, User(Roles.CaseOfficer));
 
         Assert.Equal([CaseAction.ViewPetitioner], actions);
+    }
+
+    // 待核定：承辦人只剩查看個資（不能再改、不能退件），等主管處理
+    [Fact]
+    public void AllowedFor_OfficerOnPendingApproval_ReturnsViewPetitionerOnly()
+    {
+        var actions = CaseActions.AllowedFor(PendingApproval("u-officer"), User(Roles.CaseOfficer));
+
+        Assert.Equal([CaseAction.ViewPetitioner], actions);
+    }
+
+    // 主管可以核定或退回別人送出的結案
+    [Fact]
+    public void AllowedFor_SupervisorOnOthersPendingApproval_CanApproveAndReturn()
+    {
+        var actions = CaseActions.AllowedFor(PendingApproval("u-officer"), User(Roles.Supervisor));
+
+        Assert.Equal(
+            [CaseAction.ViewPetitioner, CaseAction.ApproveClosing, CaseAction.ReturnClosing],
+            actions);
+    }
+
+    // 主管自己送出的結案：不顯示核定（職責分離，Domain 也會擋），退回（撤回重寫）可以
+    [Fact]
+    public void AllowedFor_SupervisorOnOwnPendingApproval_CanOnlyReturn()
+    {
+        var actions = CaseActions.AllowedFor(PendingApproval("u-test"), User(Roles.Supervisor));
+
+        Assert.Equal([CaseAction.ViewPetitioner, CaseAction.ReturnClosing], actions);
     }
 
     // 多個角色：兩組各自判斷，結果合併
@@ -95,6 +125,13 @@ public class CaseActionsTests
     {
         var @case = Assigned(NewCase());
         @case.StartReview();
+        return @case;
+    }
+
+    private static Case PendingApproval(string submittedBy)
+    {
+        var @case = UnderReview();
+        @case.SubmitForClosing("已處理", submittedBy);
         return @case;
     }
 }

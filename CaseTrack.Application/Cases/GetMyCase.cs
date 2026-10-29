@@ -44,10 +44,10 @@ public sealed class GetMyCaseHandler
             @case.CaseNumber,
             @case.Subject,
             @case.Content,
-            @case.Status,
+            CitizenStatus.Of(@case.Status),
             @case.SubmittedAt,
             @case.RejectionReason,
-            @case.ClosingReply,
+            CitizenStatus.ClosingReplyOf(@case),
             ToDetails(@case.Petitioner),
             AttachmentDetails.ListFor(@case.Attachments, supplementRequestId: null),
             SupplementRequestDetails.ListFor(@case));

@@ -9,6 +9,8 @@ public class CaseStatusTransitionTests
     private static readonly Petitioner Petitioner = new("王小明", "0912345678", null, null);
     private const string SubmittedBy = "u-citizen-1";
     private static readonly Department Department = new("001", "Test");
+    private const string Officer = "u-officer";
+    private const string Supervisor = "u-supervisor";
 
     // ── 建立 ─────────────────────────────────────────────
 
@@ -71,15 +73,65 @@ public class CaseStatusTransitionTests
         Assert.Equal(CaseStatus.UnderReview, @case.Status);
     }
 
+    // 送出結案不會直接結案：等主管核定
     [Fact]
-    public void Close_WhenUnderReview_StatusIsClosed()
+    public void SubmitForClosing_WhenUnderReview_StatusIsPendingApproval()
     {
         var @case = CreateCaseInStatus(CaseStatus.UnderReview);
 
-        @case.Close("Test Reply");
+        @case.SubmitForClosing("Test Reply", Officer);
 
+        Assert.Equal(CaseStatus.PendingApproval, @case.Status);
         Assert.Equal("Test Reply", @case.ClosingReply);
+        Assert.Equal(Officer, @case.ClosingSubmittedBy);
+    }
+
+    [Fact]
+    public void ApproveClosing_ByAnotherUser_StatusIsClosed()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.PendingApproval);
+
+        @case.ApproveClosing(Supervisor);
+
         Assert.Equal(CaseStatus.Closed, @case.Status);
+        Assert.Equal("Test Reply", @case.ClosingReply);
+    }
+
+    // 職責分離：主管自己承辦、自己送出的結案，要由其他主管核定
+    [Fact]
+    public void ApproveClosing_BySubmitter_ThrowsAndKeepsStatus()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.PendingApproval);
+
+        Assert.Throws<SelfApprovalNotAllowedException>(() => @case.ApproveClosing(Officer));
+        Assert.Equal(CaseStatus.PendingApproval, @case.Status);
+    }
+
+    // 退回：回到審核中，清掉送出的回覆（ClosingReply 有值 = 待核定或已結案），留下退回原因給承辦人
+    [Fact]
+    public void ReturnClosing_WhenPendingApproval_BackToUnderReviewWithReason()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.PendingApproval);
+
+        @case.ReturnClosing("回覆請補上施工日期");
+
+        Assert.Equal(CaseStatus.UnderReview, @case.Status);
+        Assert.Equal("回覆請補上施工日期", @case.ClosingReturnReason);
+        Assert.Null(@case.ClosingReply);
+        Assert.Null(@case.ClosingSubmittedBy);
+    }
+
+    // 退回後重新送出：上一次的退回原因已經處理了，清掉
+    [Fact]
+    public void SubmitForClosing_AfterReturn_ClearsReturnReason()
+    {
+        var @case = CreateCaseInStatus(CaseStatus.PendingApproval);
+        @case.ReturnClosing("回覆請補上施工日期");
+
+        @case.SubmitForClosing("已於 10/30 施工完成", Officer);
+
+        Assert.Equal(CaseStatus.PendingApproval, @case.Status);
+        Assert.Null(@case.ClosingReturnReason);
     }
 
     [Theory]
@@ -215,6 +267,7 @@ public class CaseStatusTransitionTests
     [Theory]
     [InlineData(CaseStatus.UnderReview)]
     [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.PendingApproval)]
     [InlineData(CaseStatus.Closed)]
     [InlineData(CaseStatus.Rejected)]
     public void StartReview_FromNonSubmitted_Throws(CaseStatus from)
@@ -225,6 +278,7 @@ public class CaseStatusTransitionTests
     [Theory]
     [InlineData(CaseStatus.Submitted)]
     [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.PendingApproval)]
     [InlineData(CaseStatus.Closed)]
     [InlineData(CaseStatus.Rejected)]
     public void RequestSupplement_FromNonUnderReview_Throws(CaseStatus from)
@@ -235,6 +289,7 @@ public class CaseStatusTransitionTests
     [Theory]
     [InlineData(CaseStatus.Submitted)]
     [InlineData(CaseStatus.UnderReview)]
+    [InlineData(CaseStatus.PendingApproval)]
     [InlineData(CaseStatus.Closed)]
     [InlineData(CaseStatus.Rejected)]
     public void SubmitSupplement_FromNonAwaitingSupplement_Throws(CaseStatus from)
@@ -245,14 +300,38 @@ public class CaseStatusTransitionTests
     [Theory]
     [InlineData(CaseStatus.Submitted)]
     [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.PendingApproval)]
     [InlineData(CaseStatus.Closed)]
     [InlineData(CaseStatus.Rejected)]
-    public void Close_FromNonUnderReview_Throws(CaseStatus from)
+    public void SubmitForClosing_FromNonUnderReview_Throws(CaseStatus from)
     {
-        AssertTransitionFails(from, CaseStatus.Closed, c => c.Close("Test Reply"));
+        AssertTransitionFails(from, CaseStatus.PendingApproval, c => c.SubmitForClosing("Test Reply", Officer));
     }
 
     [Theory]
+    [InlineData(CaseStatus.Submitted)]
+    [InlineData(CaseStatus.UnderReview)]
+    [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.Closed)]
+    [InlineData(CaseStatus.Rejected)]
+    public void ApproveClosing_FromNonPendingApproval_Throws(CaseStatus from)
+    {
+        AssertTransitionFails(from, CaseStatus.Closed, c => c.ApproveClosing(Supervisor));
+    }
+
+    [Theory]
+    [InlineData(CaseStatus.Submitted)]
+    [InlineData(CaseStatus.UnderReview)]
+    [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.Closed)]
+    [InlineData(CaseStatus.Rejected)]
+    public void ReturnClosing_FromNonPendingApproval_Throws(CaseStatus from)
+    {
+        AssertTransitionFails(from, CaseStatus.UnderReview, c => c.ReturnClosing("Reason"));
+    }
+
+    [Theory]
+    [InlineData(CaseStatus.PendingApproval)]
     [InlineData(CaseStatus.Closed)]
     [InlineData(CaseStatus.Rejected)]
     public void Reject_FromNonRejectableStatus_Throws(CaseStatus from)
@@ -291,11 +370,11 @@ public class CaseStatusTransitionTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Close_WithBlankReply_ThrowsAndKeepStatus(string? reply)
+    public void SubmitForClosing_WithBlankReply_ThrowsAndKeepStatus(string? reply)
     {
         var @case = CreateCaseInStatus(CaseStatus.UnderReview);
 
-        Assert.ThrowsAny<ArgumentException>(() => @case.Close(reply!));
+        Assert.ThrowsAny<ArgumentException>(() => @case.SubmitForClosing(reply!, Officer));
         Assert.Equal(CaseStatus.UnderReview, @case.Status);
         Assert.Null(@case.ClosingReply);
     }
@@ -424,6 +503,7 @@ public class CaseStatusTransitionTests
     [Theory]
     [InlineData(CaseStatus.UnderReview)]
     [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.PendingApproval)]
     [InlineData(CaseStatus.Closed)]
     [InlineData(CaseStatus.Rejected)]
     public void AssignTo_WhenNotSubmitted_ThrowsCaseAssignmentNotAllowed(CaseStatus status)
@@ -493,6 +573,7 @@ public class CaseStatusTransitionTests
     [Theory]
     [InlineData(CaseStatus.UnderReview)]
     [InlineData(CaseStatus.AwaitingSupplement)]
+    [InlineData(CaseStatus.PendingApproval)]
     [InlineData(CaseStatus.Closed)]
     [InlineData(CaseStatus.Rejected)]
     public void Dismiss_WhenNotSubmitted_ThrowsAndKeepsStatus(CaseStatus status)
@@ -546,9 +627,14 @@ public class CaseStatusTransitionTests
                 AssignAndStartReview(@case);
                 @case.RequestSupplement("Need more information.", Now);
                 break;
+            case CaseStatus.PendingApproval:
+                AssignAndStartReview(@case);
+                @case.SubmitForClosing("Test Reply", Officer);
+                break;
             case CaseStatus.Closed:
                 AssignAndStartReview(@case);
-                @case.Close("Test Reply");
+                @case.SubmitForClosing("Test Reply", Officer);
+                @case.ApproveClosing(Supervisor);
                 break;
             case CaseStatus.Rejected:
                 @case.Reject("Test Rejection");

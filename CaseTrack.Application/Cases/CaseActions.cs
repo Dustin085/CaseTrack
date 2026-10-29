@@ -19,10 +19,18 @@ public static class CaseActions
         {
             AddIf(actions, @case.CanStartReview, CaseAction.Review);
             AddIf(actions, @case.CanRequestSupplement, CaseAction.RequestSupplement);
-            AddIf(actions, @case.CanClose, CaseAction.Close);
+            AddIf(actions, @case.CanSubmitForClosing, CaseAction.Close);
             AddIf(actions, @case.CanReject, CaseAction.Reject);
             // 查看完整個資只看角色，不看狀態：結案後民眾來電詢問，承辦人也需要聯絡得到人
             actions.Add(CaseAction.ViewPetitioner);
+        }
+
+        if (user.Roles.Overlaps(Roles.ClosingApprovers))
+        {
+            // 自己送出的結案不顯示「核定」（Domain 也會擋）；退回自己送出的可以，等於撤回重寫
+            AddIf(actions, @case.CanApproveClosing && @case.ClosingSubmittedBy != user.UserId,
+                CaseAction.ApproveClosing);
+            AddIf(actions, @case.CanReturnClosing, CaseAction.ReturnClosing);
         }
 
         if (user.Roles.Overlaps(Roles.CaseDispatchers))
