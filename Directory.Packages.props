@@ -6,6 +6,7 @@
   </PropertyGroup>
   <!-- 10.0.x 的套件整組一起升級：10.0.13 是 2026-10-13 的安全性修補版本 -->
   <ItemGroup Label="Api">
+    <PackageVersion Include="ClosedXML" Version="0.105.1" />
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.13" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.13" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13" />

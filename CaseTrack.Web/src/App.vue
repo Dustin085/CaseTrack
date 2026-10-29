@@ -23,6 +23,7 @@ watch(isLoggedIn, (loggedIn) => {
     <!-- 依角色顯示選單（只是使用者體驗，權限在後端）。重新整理後 me 還沒回來前不顯示 -->
     <nav v-if="isLoggedIn">
       <RouterLink v-if="isStaff" to="/cases">案件列表</RouterLink>
+      <RouterLink v-if="isStaff" to="/reports">報表</RouterLink>
       <template v-if="isCitizen">
         <RouterLink to="/my/cases">我的案件</RouterLink>
         <RouterLink to="/my/cases/new">我要陳情</RouterLink>

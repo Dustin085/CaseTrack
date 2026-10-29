@@ -1,5 +1,6 @@
 using CaseTrack.Application.Cases;
 using CaseTrack.Application.Departments;
+using CaseTrack.Application.Reports;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaseTrack.Application;
@@ -15,6 +16,7 @@ public static class DependencyInjection
         services.AddScoped<RejectCaseHandler>();
         services.AddScoped<CloseCaseHandler>();
         services.AddScoped<ReviewClosingHandler>();
+        services.AddScoped<CaseReportHandler>();
         services.AddScoped<SubmitSupplementHandler>();
         services.AddScoped<RequestSupplementHandler>();
         services.AddScoped<RejectOverdueCaseHandler>();

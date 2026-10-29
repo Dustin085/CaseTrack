@@ -1,5 +1,7 @@
 ﻿using CaseTrack.Application.Abstractions;
+using CaseTrack.Application.Reports;
 using CaseTrack.Infrastructure.Persistence;
+using CaseTrack.Infrastructure.Persistence.Queries;
 using CaseTrack.Infrastructure.Persistence.Auditing;
 using CaseTrack.Infrastructure.Persistence.Repositories;
 using CaseTrack.Infrastructure.Storage;
@@ -23,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<ICaseRepository, CaseRepository>();
         services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddScoped<IPersonalDataAccessLog, PersonalDataAccessLog>();
+        services.AddScoped<ICaseReportQuery, CaseReportQuery>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaseTrackDbContext>());
 
         services.AddSingleton(TimeProvider.System);
