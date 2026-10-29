@@ -774,3 +774,98 @@ API 本身不管帳號密碼，只負責驗證 token（OAuth 的 Resource Server
 - 驗證用的資料庫是自己的 LocalDB 執行個體，不碰開發者日常使用的資料庫；伺服器用不同的 port 啟動，驗證完就關掉。
 
 **證據**：10/22 的瀏覽器驗證紀錄；`CaseTrack.Web` 的各個頁面。
+
+## 2026-10-27～29：附件上傳與下載
+
+### 48. 上傳的檔案怎麼判斷類型？為什麼不看副檔名或 Content-Type？
+
+**30 秒版本**
+副檔名和瀏覽器送來的 Content-Type 都是使用者自己說的，把 virus.exe 改名成 photo.jpg 就騙過去了。我用檔案開頭的幾個 bytes（檔頭，magic number）判斷實際類型，只收 JPG、PNG、PDF；同時檢查副檔名要跟實際類型相符，內容是 PNG、檔名卻是 .exe 也拒絕，因為下載時檔名照原樣給使用者，Windows 看到 .exe 會試著執行。
+
+**展開**
+- 讀完檔頭要把 Position 移回 0：接著要從頭存檔，少了開頭的 bytes 檔案就壞了。`ReadAsync` 不保證一次讀滿，用 `ReadAtLeastAsync`。
+- 允許的類型寫在 Domain 的 `AttachmentRules`，認得的檔頭寫在 Application 的 `FileSignatures`，兩邊要一致，有測試檢查：那邊允許了這裡卻認不出來，就永遠上傳不了，也不會有錯誤說明原因。
+- 檔名只取最後一段：舊版瀏覽器會送完整路徑（`C:\Users\王小明\Desktop\...`），會洩漏使用者電腦的資料夾結構；先把 `\` 換成 `/`，伺服器換成 Linux 時 `Path.GetFileName` 才切得開。
+- 存放時檔名是附件的 Guid、沒有副檔名、不放在 wwwroot：就算有東西混進來，也不能透過網址直接執行或瀏覽。
+- 下載時再加 `X-Content-Type-Options: nosniff` 和 `Content-Disposition: attachment`，前端一律存檔、不在瀏覽器打開：每一層都假設前一層可能失守（縱深防禦）。
+
+**證據**：`FileSignatures.cs`、`AttachmentUploader.cs`、`FileSignaturesTests`、上傳測試的偽裝檔案案例。
+
+### 49. 檔案存在磁碟、紀錄在資料庫，怎麼保持一致？
+
+**30 秒版本**
+檔案系統和資料庫沒辦法放在同一個交易裡，所以我安排順序：先存檔、再存資料庫，資料庫失敗就刪掉剛存的檔案（補償）。這樣最壞的情況是留下沒人引用的檔案（無害，之後用定期對帳清掉），不會出現「資料庫有紀錄、檔案卻不存在」，那種情況下載會壞掉。
+
+**展開**
+- 順序反過來（先存資料庫）的話，存檔失敗時資料庫已經有紀錄了，要補償的是資料庫，而且使用者可能已經看到那筆附件。
+- 補償是「盡力」：刪除失敗不能蓋掉原本的例外；用 `CancellationToken.None`，因為請求被取消時原本的 token 已經取消，拿它去刪會馬上失敗，一個都刪不掉；每個檔案各自 try，一個刪不掉其他的還是要刪。
+- 程式在補償之前就當掉，還是會留下孤兒檔案，所以補償不是完整的解法，最後一道是定期對帳（列出沒有紀錄的檔案再刪除，要留緩衝時間，避免刪到正在上傳的）。
+- 為什麼不用 outbox：outbox 解決的是「資料庫 commit 之後，確保訊息一定送出」，方向是資料庫 → 外部；這裡要的是「外部（檔案）先成功，資料庫才 commit」，方向相反。outbox 留給之後的通知功能。
+- 資料庫有紀錄但檔案不見時，下載回 500 而不是 404：這是系統出錯，回 404 會讓問題看起來像使用者給錯網址，掩蓋掉。
+
+**證據**：`AttachmentUploader.cs` 的補償、`LocalFileStorageTests`、下載測試的「檔案遺失 500」。
+
+### 50. 上傳大小怎麼限制？為什麼有一部分測試要跑在真的 Kestrel 上？
+
+**30 秒版本**
+上限由附件規則算出來（5 個 × 10 MB 加上表單欄位），超過時回 413，錯誤放在附件欄位。我發現一般 API 測試用的 TestServer 完全不套用 `[RequestSizeLimit]`，超大的請求會整個收下來，最後變成 Domain 的「單檔超過 10 MB」（400），測不到 413。所以大小限制另外用一組跑在真的 Kestrel 上的測試。
+
+**展開**
+- 只設 `RequestSizeLimit` 不夠：模型繫結讀表單時碰到上限，會把錯誤吞掉變成 400、空字串欄位、英文訊息。我寫了一個 Resource Filter（`MultipartFormLimit`），在模型繫結之前自己讀表單，超過上限直接回 413 和中文的錯誤。
+- 這個 Filter 是 Attribute 本身實作 `IAsyncResourceFilter`，ASP.NET Core 會快取這個實例，所以不能有狀態（跟 Spring 的 singleton bean 一樣的限制）。
+- 真的 Kestrel 上，伺服器發現太大會直接中斷連線，客戶端常常讀不到 413 的回應。測試送 `Expect: 100-continue`，伺服器在收 body 之前就能回 413，測試才讀得到。瀏覽器不會送這個標頭，所以前端要先自己檢查大小，讀不到 413 時顯示「無法連線，請確認檔案大小」。
+
+**證據**：`UploadSizeLimitTests`（`KestrelApiFactory`，`UseKestrel(0)` 讓作業系統挑 port）、`MultipartFormLimitAttribute.cs`、`UploadLimits.cs`。
+
+### 51. 下載附件怎麼防止看到別人的檔案？
+
+**30 秒版本**
+附件一定從「這個使用者看得到的案件」裡面找：先用資料列範圍（民眾只能看自己的、承辦人只能看本單位的）取得案件，再在 `@case.Attachments` 裡找附件 Id。網址上案件 Id 和附件 Id 是兩個獨立的參數，如果直接用附件 Id 查資料表，拿自己的案件 Id 配上別人的附件 Id 就下載到了，這就是 IDOR（不安全的直接物件參考）。
+
+**展開**
+- 找不到案件或附件都回 404，不區分「不存在」和「沒權限」，不透露別人的案件存在。
+- 民眾和承辦端是不同的網址與 policy：民眾用承辦端網址、管理者（不能看案件內容）都是 403。
+- 有測試專門驗證 IDOR：民眾 A 的案件 Id + 民眾 B 的附件 Id → 404。
+- 案件同時 Include 附件和補件兩個集合，用 `AsSplitQuery` 避免 JOIN 時資料列相乘（附件 5 個 × 補件 3 筆會變成 15 列）。
+
+**證據**：`GetAttachmentHandler`、`AttachmentDownloadApiTests`（11 個）、`CaseRepository.GetByIdAsync`。
+
+### 52. 前端怎麼上傳檔案？遇過什麼陷阱？
+
+**30 秒版本**
+用 `FormData`，欄位名稱對應 C# 的屬性路徑（`Petitioner.Name`），檔案同一個名稱 append 好幾次，後端收成 `List<IFormFile>`。最大的陷阱是我一開始用 `for...in` 逐一 append 檔案：它跑的是索引 "0"、"1"，送出去的是文字欄位，型別檢查、後端都不會報錯，送件成功（201）但附件全部消失。改成 `for...of` 並寫註解。
+
+**展開**
+- 不能自己設定 Content-Type：multipart 的 boundary 是瀏覽器組 body 時才產生的，自己設定會少了 boundary，後端讀不懂。`apiFetch` 收到 FormData 時不設定。
+- 表單沒有 null：`append(name, null)` 會送出字串 "null"，選填欄位沒填就不送。
+- `<input type="file">` 的值是唯讀的，不能用 v-model；選完要把 `input.value` 清空，否則再選同一個檔案不會觸發 change。`accept` 只是檔案對話框的篩選，不是檢查。
+- 前端的檢查（數量、大小、副檔名）只為了體驗，訊息跟後端一致；真正的檢查在後端。
+- 後端的錯誤是針對「送出時」的那份清單，使用者增減檔案之後就過時了，要隱藏，否則會顯示已經移除的檔案的錯誤。
+
+**證據**：`api/myCases.ts` 的 `appendFiles`、`AttachmentPicker.vue`、`utils/attachments.ts`；10/28 的瀏覽器驗證（故意改回 for...in，確認附件會消失）。
+
+### 53. 前端怎麼區分「後端拒絕」和「連不上」？
+
+**30 秒版本**
+fetch 只有在完全沒收到回應時才會丟例外，4xx、5xx 都算「成功收到回應」。所以我分成兩種錯誤：`ApiError`（有回應但失敗，保留狀態碼和 ProblemDetails）和 `NetworkError`（沒有回應）。但後端停掉時，前面的 proxy（開發時是 Vite，正式環境是 IIS 或 Nginx）會回 502，fetch 有收到回應，所以不是 NetworkError，要另外處理成「系統暫時無法使用」。
+
+**展開**
+- 錯誤的 message 是頁面直接顯示的文字，一律是中文：502／503／504 是 proxy 回的；其他 5xx 不顯示框架的英文 title，保留狀態碼方便回報；4xx 用後端 Domain 的中文 detail。
+- NetworkError 的原始錯誤放在 `cause`，除錯時看得到；之後加上取消請求時，AbortError 要直接往外丟，不能包成 NetworkError。
+- 這個 502 是在瀏覽器裡停掉後端才發現的，單元測試想不到。
+
+**證據**：`client.ts` 的 `messageFor`、`NetworkError`；10/28 停掉後端的驗證。
+
+### 54. 用 JWT 的系統，檔案下載怎麼做？大檔案怎麼辦？
+
+**30 秒版本**
+`<a href>` 換頁不會帶 Authorization 標頭，所以用 fetch 帶 token 把檔案讀成 Blob，再用 `URL.createObjectURL` 產生 `blob:` 網址交給 `<a download>` 存檔，最後 revoke 釋放記憶體。限制是整個檔案要先讀進記憶體、下載完才存檔，瀏覽器也不會顯示進度，所以只適合附件這種小檔案（上限 10 MB）。大檔案要改成後端發一個短期、一次性的下載網址，或改用 cookie 的 BFF 架構，讓瀏覽器直接下載。
+
+**展開**
+- 一律用 `download` 存檔，不用 `window.open` 打開：`blob:` 網址繼承本站的 origin，萬一有偽裝的 HTML 通過檢查，打開時 script 會在我們的網站上執行。
+- 不 revoke 的話，Blob 會一直留在記憶體直到關掉分頁；revoke 要等下一輪事件迴圈，`click()` 之後馬上 revoke，有些瀏覽器還沒開始下載。
+- 檔名由呼叫端傳入，不解析 `Content-Disposition`：要自己解碼 `filename*=UTF-8''...`，而且跨網域時後端沒加 `Access-Control-Expose-Headers`，JS 讀不到這個標頭（只拿到 null）。
+- 跟 cookie 的比較：傳統 session（JSESSIONID、Forms Authentication）每次請求自動帶 cookie，`<a href>` 就能下載；這是選 JWT 的代價之一。
+- 「送出並檢查回應」抽成 `send`，`apiFetch` 和 `apiDownload` 共用，錯誤處理只寫一處。
+
+**證據**：`client.ts` 的 `apiDownload`、`AttachmentList.vue`；10/29 的瀏覽器驗證（比對下載內容、revoke、500 與 502 的錯誤訊息）。
