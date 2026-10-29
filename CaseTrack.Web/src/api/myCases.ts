@@ -29,6 +29,11 @@ export function getMyCase(id: string): Promise<CitizenCaseDetails> {
   return apiFetch<CitizenCaseDetails>(`/api/my/cases/${id}`)
 }
 
+// 附件的下載網址（送件、補件的附件都是這個網址）。只回傳網址：下載由 AttachmentList 呼叫 apiDownload
+export function myAttachmentPath(caseId: string, attachmentId: string): string {
+  return `/api/my/cases/${caseId}/attachments/${attachmentId}`
+}
+
 export function submitCase(request: SubmitCaseRequest, files: File[]): Promise<SubmitCaseResult> {
   const formData = new FormData()
   formData.append('Subject', request.subject)

@@ -2,6 +2,7 @@
 import { ApiError } from '@/api/client'
 import {
   assignCase,
+  attachmentPath,
   closeCase,
   dismissCase,
   getCase,
@@ -10,8 +11,9 @@ import {
   requestSupplement,
   reviewCase,
 } from '@/api/cases'
-import type { CaseAction, CaseDetails, PetitionerDetails } from '@/api/types'
+import type { AttachmentDetails, CaseAction, CaseDetails, PetitionerDetails } from '@/api/types'
 import ActionWithReason from '@/components/ActionWithReason.vue'
+import AttachmentList from '@/components/AttachmentList.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SupplementHistory from '@/components/SupplementHistory.vue'
 import { useDepartments } from '@/composables/useDepartments'
@@ -23,6 +25,11 @@ import { computed, ref, watch } from 'vue'
 const props = defineProps<{ id: string }>()
 
 const { departments, departmentName } = useDepartments()
+
+// 交給案件的附件與補件紀錄的 AttachmentList（定義一次，不在模板裡寫兩次箭頭函式）
+function downloadPath(attachment: AttachmentDetails): string {
+  return attachmentPath(props.id, attachment.id)
+}
 
 const caseDetail = ref<CaseDetails | null>(null)
 const loading = ref(false)
@@ -219,6 +226,11 @@ const shownPetitioner = computed(() => fullPetitioner.value ?? caseDetail.value?
       <p class="multiline">{{ caseDetail.content }}</p>
     </section>
 
+    <section class="card">
+      <h2>附件</h2>
+      <AttachmentList :attachments="caseDetail.attachments" :download-path="downloadPath" />
+    </section>
+
     <section v-if="caseDetail.closingReply" class="card">
       <h2>結案回覆</h2>
       <p class="multiline">{{ caseDetail.closingReply }}</p>
@@ -229,7 +241,11 @@ const shownPetitioner = computed(() => fullPetitioner.value ?? caseDetail.value?
       <p class="multiline">{{ caseDetail.rejectionReason }}</p>
     </section>
 
-    <SupplementHistory class="card" :requests="caseDetail.supplementRequests" />
+    <SupplementHistory
+      class="card"
+      :requests="caseDetail.supplementRequests"
+      :download-path="downloadPath"
+    />
 
     <!-- 顯示完整個資時整張卡片換成醒目的顏色：提醒承辦人畫面上有完整的個資 -->
     <section v-if="shownPetitioner" class="card petitioner" :class="{ revealed: fullPetitioner }">

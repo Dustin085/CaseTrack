@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ApiError } from '@/api/client'
-import { getMyCase, submitSupplement } from '@/api/myCases'
-import type { CitizenCaseDetails } from '@/api/types'
+import { getMyCase, myAttachmentPath, submitSupplement } from '@/api/myCases'
+import type { AttachmentDetails, CitizenCaseDetails } from '@/api/types'
+import AttachmentList from '@/components/AttachmentList.vue'
 import AttachmentPicker from '@/components/AttachmentPicker.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import SupplementHistory from '@/components/SupplementHistory.vue'
@@ -39,6 +40,11 @@ async function load() {
 
 // 用 watch 不用 onMounted：只換 id 時 Vue Router 會重複使用這個元件，onMounted 不會再執行
 watch(() => props.id, load, { immediate: true })
+
+// 交給案件的附件與補件紀錄的 AttachmentList（定義一次，不在模板裡寫兩次箭頭函式）
+function downloadPath(attachment: AttachmentDetails): string {
+  return myAttachmentPath(props.id, attachment.id)
+}
 
 // ── 補件 ──────────────────────────────────────────────
 
@@ -156,6 +162,11 @@ function orNotProvided(value: string | null): string {
       <p class="multiline">{{ caseDetail.content }}</p>
     </section>
 
+    <section>
+      <h2>附件</h2>
+      <AttachmentList :attachments="caseDetail.attachments" :download-path="downloadPath" />
+    </section>
+
     <section v-if="caseDetail.closingReply">
       <h2>結案回覆</h2>
       <p class="multiline">{{ caseDetail.closingReply }}</p>
@@ -200,7 +211,7 @@ function orNotProvided(value: string | null): string {
     <p v-if="supplementSuccess" role="status">已送出補件，承辦人會繼續處理。</p>
     <p v-if="supplementConflict" class="error" role="alert">{{ supplementConflict }}</p>
 
-    <SupplementHistory :requests="caseDetail.supplementRequests" />
+    <SupplementHistory :requests="caseDetail.supplementRequests" :download-path="downloadPath" />
 
     <section>
       <h2>陳情人資料</h2>

@@ -84,6 +84,7 @@ export interface CaseDetails {
   rejectionReason: string | null
   closingReply: string | null
   petitioner: PetitionerDetails // 遮罩過的（王*明）
+  attachments: AttachmentDetails[]
   supplementRequests: SupplementRequestDetails[]
   departmentId: string | null
   allowedActions: CaseAction[]
@@ -134,12 +135,24 @@ export interface PetitionerDetails {
   address: string | null
 }
 
+// 附件（只有資料，沒有檔案內容；下載另外呼叫下載的 API）。
+// 送件附的放在案件的 attachments，補件附的放在各自 SupplementRequestDetails 的 attachments。
+// contentType 是後端用檔頭判斷出來的，不是民眾上傳時瀏覽器給的
+export interface AttachmentDetails {
+  id: string
+  fileName: string
+  contentType: string
+  size: number
+  uploadedAt: string
+}
+
 export interface SupplementRequestDetails {
   sequence: number
   reason: string
   requestedAt: string
   submittedAt: string | null
   submittedContent: string | null
+  attachments: AttachmentDetails[]
 }
 
 // GET /api/my/cases/{id}：民眾自己的案件，陳情人資料不遮罩
@@ -153,6 +166,7 @@ export interface CitizenCaseDetails {
   rejectionReason: string | null
   closingReply: string | null
   petitioner: PetitionerDetails
+  attachments: AttachmentDetails[]
   supplementRequests: SupplementRequestDetails[]
 }
 

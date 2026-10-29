@@ -37,6 +37,11 @@ export function getPetitioner(id: string): Promise<PetitionerDetails> {
   return apiFetch<PetitionerDetails>(`/api/cases/${id}/petitioner`)
 }
 
+// 附件的下載網址（送件、補件的附件都是這個網址）。只回傳網址：下載由 AttachmentList 呼叫 apiDownload
+export function attachmentPath(caseId: string, attachmentId: string): string {
+  return `/api/cases/${caseId}/attachments/${attachmentId}`
+}
+
 // 單位清單（登入就能看）：列表只有 departmentId，用它對照單位名稱
 export function listDepartments(): Promise<Department[]> {
   return apiFetch<Department[]>('/api/departments')

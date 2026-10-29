@@ -1,9 +1,14 @@
 <script setup lang="ts">
 // 補件紀錄：民眾和承辦端的案件詳情共用。沒有紀錄時不顯示，呼叫的地方不用自己判斷
-import type { SupplementRequestDetails } from '@/api/types'
+import type { AttachmentDetails, SupplementRequestDetails } from '@/api/types'
+import AttachmentList from '@/components/AttachmentList.vue'
 import { formatDateTime } from '@/utils/format'
 
-defineProps<{ requests: SupplementRequestDetails[] }>()
+defineProps<{
+  requests: SupplementRequestDetails[]
+  // 只是轉交給 AttachmentList：民眾端與承辦端的下載網址不同，由案件詳情決定
+  downloadPath: (attachment: AttachmentDetails) => string
+}>()
 </script>
 
 <template>
@@ -18,9 +23,15 @@ defineProps<{ requests: SupplementRequestDetails[] }>()
           <dd class="multiline">{{ request.reason }}</dd>
           <dt>補件時間</dt>
           <dd>{{ request.submittedAt ? formatDateTime(request.submittedAt) : '尚未補件' }}</dd>
-          <template v-if="request.submittedContent">
+          <!-- 還沒補件時不顯示附件：顯示「沒有附件」會讓人以為民眾補件時沒附檔案。
+               用 submittedAt 判斷「補過了沒」（補件說明必填，兩者同時有值，但意思是「已補件」的是這個） -->
+          <template v-if="request.submittedAt">
             <dt>補件說明</dt>
             <dd class="multiline">{{ request.submittedContent }}</dd>
+            <dt>補件附件</dt>
+            <dd>
+              <AttachmentList :attachments="request.attachments" :download-path="downloadPath" />
+            </dd>
           </template>
         </dl>
       </li>
