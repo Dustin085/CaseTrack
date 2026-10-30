@@ -6,6 +6,8 @@ public class Case
     private readonly List<SupplementRequest> _supplementRequests = new();
     private readonly List<Attachment> _attachments = new();
     public Guid Id { get; private set; } = Guid.NewGuid();
+    // 存成字串：列表的關鍵字搜尋要對它做 LIKE。屬性改成 CaseNumber 型別（Value Converter）的話，
+    // EF 沒辦法把 c.CaseNumber.Value.Contains(...) 翻譯成 SQL。格式由建構子收 CaseNumber 來保證
     public string CaseNumber { get; private set; }
     public string Subject { get; private set; }
     public string Content { get; private set; }
@@ -38,20 +40,20 @@ public class Case
     public bool CanSubmitSupplement => Status == CaseStatus.AwaitingSupplement;
     public bool CanAssign => Status == CaseStatus.Submitted;
 
-    // 案件編號（每日流水號）需要查資料庫才能保證不重複，由外部產生後傳入。
+    // 案件編號的流水號需要查資料庫才能保證不重複，由外部產生後傳入；收 CaseNumber 不收 string，格式一定正確。
     // 送件時間也由外部傳入（Handler 用 TimeProvider），Domain 不自己取時間。
     // 建立後 Attachments 全部都是這次新增的，順序和傳入的 attachments 相同（Application 用它對應要存的檔案）
-    public Case(string caseNumber, string subject, string content, Petitioner petitioner,
+    public Case(CaseNumber caseNumber, string subject, string content, Petitioner petitioner,
         string submittedBy, DateTimeOffset submittedAt, IReadOnlyList<NewAttachment> attachments)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(caseNumber);
+        ArgumentNullException.ThrowIfNull(caseNumber);
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(content);
         ArgumentNullException.ThrowIfNull(petitioner);
         ArgumentException.ThrowIfNullOrWhiteSpace(submittedBy);
         AttachmentRules.Validate(attachments);
 
-        CaseNumber = caseNumber;
+        CaseNumber = caseNumber.Value;
         Subject = subject;
         Content = content;
         Petitioner = petitioner;

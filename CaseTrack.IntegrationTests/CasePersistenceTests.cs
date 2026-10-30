@@ -24,7 +24,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
+        var @case = new Case(TestData.NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
@@ -61,7 +61,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
+        var @case = new Case(TestData.NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
 
@@ -104,7 +104,7 @@ public class CasePersistenceTests
     {
         // Arrange：第一個案件先成功存進去（模擬先到的請求）
         var cancellationToken = TestContext.Current.CancellationToken;
-        var caseNumber = NewCaseNumber();
+        var caseNumber = TestData.NewCaseNumber();
         var case1 = new Case(caseNumber, "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         var case2 = new Case(caseNumber, "水管破裂", "中山路水管破裂", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
 
@@ -130,7 +130,7 @@ public class CasePersistenceTests
         // Assert：先到的案件不受影響，資料庫裡這個編號只有一筆
         await using var readContext = _fixture.CreateContext();
         var saved = await readContext.Cases
-            .Where(c => c.CaseNumber == caseNumber)
+            .Where(c => c.CaseNumber == caseNumber.Value)
             .ToListAsync(cancellationToken);
         Assert.Equal(case1.Id, Assert.Single(saved).Id);
     }
@@ -142,7 +142,7 @@ public class CasePersistenceTests
     {
         // Arrange：第 1 次補件已補、第 2 次補件等待中
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
+        var @case = new Case(TestData.NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         @case.RequestSupplement("缺照片", Now);
@@ -181,7 +181,7 @@ public class CasePersistenceTests
     public async Task SaveChanges_WhenConcurrentUpdateOccurs_ThrowsConcurrencyConflict()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
+        var @case = new Case(TestData.NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(TestData.DepartmentId);
         @case.StartReview();
         await using (var writeContext = _fixture.CreateContext())
@@ -231,7 +231,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
+        var @case = new Case(TestData.NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         await using (var writeContext = _fixture.CreateContext())
         {
             writeContext.Cases.Add(@case);
@@ -259,7 +259,7 @@ public class CasePersistenceTests
     {
         // Arrange
         var cancellationToken = TestContext.Current.CancellationToken;
-        var @case = new Case(NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
+        var @case = new Case(TestData.NewCaseNumber(), "路燈不亮", "中山路路燈故障", TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []);
         @case.AssignTo(Guid.NewGuid());
 
         // Act & Assert
@@ -279,6 +279,4 @@ public class CasePersistenceTests
         await using var readContext = _fixture.CreateContext();
         Assert.False(await readContext.Cases.AnyAsync(c => c.Id == @case.Id, cancellationToken));
     }
-
-    private static string NewCaseNumber() => $"T-{Guid.NewGuid():N}"[..20];
 }

@@ -15,6 +15,13 @@ internal static class TestData
     // migration 預先放入的工務局：受理之前一定要先分派，而且外鍵要求單位必須存在
     public static readonly Guid DepartmentId = DepartmentSeed.PublicWorks;
 
+    // 直接 new Case 的測試用的編號：每次都不同（案件編號有唯一索引，所有測試共用同一個資料庫）。
+    // 日期用 2000/1/1：正式的取號不會產生這一天，不會跟 API 測試送件拿到的編號撞號
+    private static int _caseNumberSequence;
+
+    public static CaseNumber NewCaseNumber() =>
+        CaseNumber.Create(new DateOnly(2000, 1, 1), Interlocked.Increment(ref _caseNumberSequence));
+
     // 附件的存放位置：測試不能寫進原始碼資料夾（API 的 ContentRoot），一律放在暫存資料夾
     public static readonly string FileStorageRoot = Path.Combine(Path.GetTempPath(), "CaseTrackTests", "attachments");
 }

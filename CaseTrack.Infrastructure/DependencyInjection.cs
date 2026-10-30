@@ -31,7 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaseTrackDbContext>());
 
         services.AddSingleton(TimeProvider.System);
-        services.AddScoped<ICaseNumberGenerator, SqlCaseNumberGenerator>();
+        services.AddScoped<ICaseNumberSequence, SqlCaseNumberSequence>();
 
         // 沒有狀態（只有根目錄這個設定），整個 app 共用一個
         services.AddSingleton<IFileStorage>(new LocalFileStorage(fileStorageRootPath));

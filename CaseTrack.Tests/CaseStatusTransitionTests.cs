@@ -25,19 +25,26 @@ public class CaseStatusTransitionTests
 
     // 這裡要測的就是參數本身，所以直接 new，不藏進 helper
     [Theory]
-    [InlineData("", "Subject", "Content")]
-    [InlineData("20261005-0001", " ", "Content")]
-    [InlineData("20261005-0001", "Subject", "")]
-    public void Constructor_WithBlankArgument_ThrowsArgumentException(
-        string caseNumber, string subject, string content)
+    [InlineData(" ", "Content")]
+    [InlineData("Subject", "")]
+    public void Constructor_WithBlankArgument_ThrowsArgumentException(string subject, string content)
     {
-        Assert.ThrowsAny<ArgumentException>(() => new Case(caseNumber, subject, content, Petitioner, SubmittedBy, Now, []));
+        Assert.ThrowsAny<ArgumentException>(() => new Case(
+            CaseNumber.Create(new DateOnly(2026, 10, 5), 1), subject, content, Petitioner, SubmittedBy, Now, []));
+    }
+
+    // 編號的格式由 CaseNumber 保證（CaseNumberTests），這裡只剩「一定要有」
+    [Fact]
+    public void Constructor_WithNullCaseNumber_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new Case(null!, "Subject", "Content", Petitioner, SubmittedBy, Now, []));
     }
 
     [Fact]
     public void Constructor_WithNullPetitioner_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => new Case("20261005-0001", "Subject", "Content", null!, SubmittedBy, Now, []));
+        Assert.Throws<ArgumentNullException>(() => new Case(CaseNumber.Create(new DateOnly(2026, 10, 5), 1), "Subject", "Content", null!, SubmittedBy, Now, []));
     }
 
     // 送件人一定要有：民眾要登入才能陳情，案件一定知道是誰送的
@@ -48,7 +55,7 @@ public class CaseStatusTransitionTests
     public void Constructor_WithBlankSubmittedBy_ThrowsArgumentException(string? submittedBy)
     {
         Assert.ThrowsAny<ArgumentException>(
-            () => new Case("20261005-0001", "Subject", "Content", Petitioner, submittedBy!, Now, []));
+            () => new Case(CaseNumber.Create(new DateOnly(2026, 10, 5), 1), "Subject", "Content", Petitioner, submittedBy!, Now, []));
     }
 
     [Fact]
@@ -602,7 +609,7 @@ public class CaseStatusTransitionTests
 
     private static Case CreateTestCase()
     {
-        return new Case("20261005-0001", "Test Subject", "Test Content", Petitioner, SubmittedBy, Now, []);
+        return new Case(CaseNumber.Create(new DateOnly(2026, 10, 5), 1), "Test Subject", "Test Content", Petitioner, SubmittedBy, Now, []);
     }
 
     // 受理之前一定要先分派

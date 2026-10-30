@@ -110,7 +110,7 @@ public class CaseCapabilityConsistencyTests
     // ── Helpers ──────────────────────────────────────────
 
     private static Case NewCase() =>
-        new("20261005-0001", "路燈不亮", "中山路路燈故障", Petitioner, "u-citizen-1", Now, []);
+        new(CaseNumber.Create(new DateOnly(2026, 10, 5), 1), "路燈不亮", "中山路路燈故障", Petitioner, "u-citizen-1", Now, []);
 
     private static Case Assigned(Case @case)
     {

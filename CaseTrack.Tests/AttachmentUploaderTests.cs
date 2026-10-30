@@ -217,7 +217,7 @@ public class AttachmentUploaderTests
         var newAttachments = files
             .Select(f => new NewAttachment(f.FileName, "image/jpeg", f.Size))
             .ToList();
-        var @case = new Case("20261027-0001", "路面坑洞", "中山路有坑洞",
+        var @case = new Case(CaseNumber.Create(new DateOnly(2026, 10, 27), 1), "路面坑洞", "中山路有坑洞",
             new Petitioner("王小明", "0912345678", null, null), "u-citizen-1", Now, newAttachments);
         return (@case.Attachments.ToList(), files);
     }

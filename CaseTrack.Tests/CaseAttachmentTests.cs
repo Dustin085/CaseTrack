@@ -262,7 +262,7 @@ public class CaseAttachmentTests
     private static NewAttachment Pdf(string fileName, long size = 1024) => new(fileName, "application/pdf", size);
 
     private static Case CreateCase(IReadOnlyList<NewAttachment> attachments) =>
-        new("20261027-0001", "路面坑洞", "中山路有坑洞", Petitioner, SubmittedBy, Now, attachments);
+        new(CaseNumber.Create(new DateOnly(2026, 10, 27), 1), "路面坑洞", "中山路有坑洞", Petitioner, SubmittedBy, Now, attachments);
 
     private static Case CreateCaseAwaitingSupplement(IReadOnlyList<NewAttachment> attachments)
     {

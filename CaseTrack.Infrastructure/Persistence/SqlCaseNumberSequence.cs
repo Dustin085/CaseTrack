@@ -6,30 +6,17 @@ namespace CaseTrack.Infrastructure.Persistence;
 
 // 每天一列計數器：UPDATE ... OUTPUT 在同一個陳述式裡完成「讀出、加 1、寫回」，併發時不會重複。
 // 取號和存案件是分開的交易，存檔失敗時會跳號（業務上允許）。
-internal sealed class SqlCaseNumberGenerator : ICaseNumberGenerator
+// 用哪一天、編號的格式都不在這裡決定（Domain 的 CaseNumber），這裡只保證同一天的數字不重複
+internal sealed class SqlCaseNumberSequence : ICaseNumberSequence
 {
-    private static readonly TimeSpan TaiwanOffset = TimeSpan.FromHours(8);
-
     private readonly CaseTrackDbContext _dbContext;
-    private readonly TimeProvider _timeProvider;
 
-    public SqlCaseNumberGenerator(CaseTrackDbContext dbContext, TimeProvider timeProvider)
+    public SqlCaseNumberSequence(CaseTrackDbContext dbContext)
     {
         _dbContext = dbContext;
-        _timeProvider = timeProvider;
     }
 
-    public async Task<string> NextAsync(CancellationToken cancellationToken = default)
-    {
-        // 用台灣時間判斷「今天」，否則早上 8 點前的案件會被算成前一天（台灣沒有日光節約時間，固定 +8）
-        var taiwanNow = _timeProvider.GetUtcNow().ToOffset(TaiwanOffset);
-        var today = DateOnly.FromDateTime(taiwanNow.DateTime);
-
-        var value = await NextValueAsync(today, cancellationToken);
-        return $"{today:yyyyMMdd}-{value:D4}";
-    }
-
-    private async Task<int> NextValueAsync(DateOnly date, CancellationToken cancellationToken)
+    public async Task<int> NextAsync(DateOnly date, CancellationToken cancellationToken = default)
     {
         while (true)
         {

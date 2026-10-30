@@ -16,21 +16,21 @@ public sealed record SubmitCaseResult(Guid Id, string CaseNumber);
 
 public sealed class SubmitCaseHandler
 {
-    private readonly ICaseNumberGenerator _caseNumberGenerator;
+    private readonly ICaseNumberSequence _caseNumberSequence;
     private readonly ICaseRepository _caseRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUser _currentUser;
     private readonly TimeProvider _timeProvider;
     private readonly AttachmentUploader _attachmentUploader;
 
-    public SubmitCaseHandler(ICaseNumberGenerator caseNumberGenerator,
+    public SubmitCaseHandler(ICaseNumberSequence caseNumberSequence,
         ICaseRepository caseRepository,
         IUnitOfWork unitOfWork,
         ICurrentUser currentUser,
         TimeProvider timeProvider,
         AttachmentUploader attachmentUploader)
     {
-        _caseNumberGenerator = caseNumberGenerator;
+        _caseNumberSequence = caseNumberSequence;
         _caseRepository = caseRepository;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
@@ -47,10 +47,15 @@ public sealed class SubmitCaseHandler
         // 附件也在取號之前檢查（檔頭、副檔名、數量、大小），同樣不浪費編號
         var newAttachments = await _attachmentUploader.InspectAsync(command.Attachments, cancellationToken);
 
+        // 送件時間只取一次，編號的日期和 SubmittedAt 用同一個時間點：
+        // 分開取的話，午夜前後送件可能出現「編號是 10/30、送件時間是 10/29 23:59」
+        var submittedAt = _timeProvider.GetUtcNow();
+        var date = CaseNumber.DateOf(submittedAt);
+
         // 取號是獨立的交易，存檔失敗時這個編號就跳過不用（業務上允許跳號）
-        var caseNumber = await _caseNumberGenerator.NextAsync(cancellationToken);
-        var @case = new Case(caseNumber, command.Subject, command.Content, petitioner,
-            _currentUser.UserId, _timeProvider.GetUtcNow(), newAttachments);
+        var sequence = await _caseNumberSequence.NextAsync(date, cancellationToken);
+        var @case = new Case(CaseNumber.Create(date, sequence), command.Subject, command.Content, petitioner,
+            _currentUser.UserId, submittedAt, newAttachments);
 
         _caseRepository.Add(@case);
         // 剛建立的案件，Attachments 全部都是這次新增的，順序和上傳的檔案相同

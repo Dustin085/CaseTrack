@@ -201,7 +201,7 @@ public class CaseListTests
     private static async Task<string> SaveCaseAsync(
         string subject, Guid? departmentId, bool startReview = false, string? submittedBy = null)
     {
-        var @case = new Case($"T-{Guid.NewGuid():N}"[..20], subject, "列表測試的內容",
+        var @case = new Case(TestData.NewCaseNumber(), subject, "列表測試的內容",
             TestData.Petitioner, submittedBy ?? TestData.SubmittedBy, TestData.SubmittedAt, []);
         if (departmentId is { } id)
         {
