@@ -27,7 +27,15 @@ function setToken(value: string | null) {
   }
 }
 
-function logout() {
+// 最近一次登出的原因，App.vue 導向登入頁時用來決定要不要帶 redirect：
+// 'user' 是按下登出按鈕（使用者已經決定離開，不帶；共用電腦上下一個人也不會被帶到上一個人的頁面），
+// 'expired' 是操作到一半 token 過期（API 回 401），重新登入後應該回到原本的頁面
+export type LogoutReason = 'user' | 'expired'
+const logoutReason = ref<LogoutReason | null>(null)
+
+// 先記原因再清 token：watch(isLoggedIn) 執行時原因已經是這次的
+function logout(reason: LogoutReason = 'user') {
+  logoutReason.value = reason
   setToken(null)
   me.value = null
 }
@@ -95,6 +103,7 @@ export function useAuth() {
     isStaff,
     isAdmin,
     homePath,
+    logoutReason: readonly(logoutReason),
     login,
     logout,
     loadMe,

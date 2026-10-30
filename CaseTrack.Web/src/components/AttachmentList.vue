@@ -78,7 +78,7 @@ table {
 }
 th,
 td {
-  padding: 0.3rem 0.75rem 0.3rem 0;
+  padding: 0.3rem 0.75rem 0.3rem 0.75rem;
   text-align: left;
 }
 th {

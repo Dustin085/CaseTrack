@@ -142,7 +142,7 @@ async function send(
     // 在 beforeEach 裡呼叫 router.push 會開始另一次換頁，原本的換頁被取消，redirect 會帶錯頁面
     if (response.status === 401) {
       // useAuth() 只是讀寫檔案層級的狀態，沒有用到 inject()，在元件外面呼叫也可以（跟 useRouter() 不同）
-      useAuth().logout()
+      useAuth().logout('expired')
       throw new ApiError(401, null)
     }
 
