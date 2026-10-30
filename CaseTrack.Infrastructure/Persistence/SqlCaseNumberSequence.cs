@@ -20,7 +20,11 @@ internal sealed class SqlCaseNumberSequence : ICaseNumberSequence
     {
         while (true)
         {
-            // UPDATE 不能被包成子查詢，所以用 ToListAsync，不能用 SingleAsync／FirstAsync
+            // 用 ToListAsync，不能用 SingleAsync／FirstAsync：那些會讓 EF 把這段 SQL 包成子查詢再加上筆數限制，
+            // 例如 SingleAsync 會變成 SELECT TOP(2) [s].[Value] FROM (UPDATE ... OUTPUT ...) AS [s]
+            // （TOP(2) 是為了判斷「剛好一筆」：查到第 2 筆就要拋例外，所以最多只需要讀 2 筆）。
+            // UPDATE 不能當子查詢，SQL Server 會回語法錯誤；ToListAsync 不包裝，原樣執行。
+            // {date} 會變成參數 @p0（參數型別是 FormattableString），不是字串串接，沒有 SQL injection 的問題
             var updated = await _dbContext.Database
                 .SqlQuery<int>($"UPDATE CaseNumberCounters SET LastValue = LastValue + 1 OUTPUT INSERTED.LastValue AS Value WHERE [Date] = {date}")
                 .ToListAsync(cancellationToken);
