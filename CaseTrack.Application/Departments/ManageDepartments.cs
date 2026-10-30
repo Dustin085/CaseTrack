@@ -29,7 +29,16 @@ public sealed class ManageDepartmentsHandler
 
         var department = new Department(normalizedCode, name.Trim());
         _departmentRepository.Add(department);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (UniqueConstraintViolationException)
+        {
+            // 查詢之後、存檔之前，別人剛好新增了同一個代碼。Departments 唯一的唯一索引就是 Code，
+            // 所以可以確定是代碼重複，回跟上面一樣的訊息（400），而不是 500
+            throw new RequestValidationException("Code", $"代碼 {normalizedCode} 已經存在");
+        }
         return ToSummary(department);
     }
 

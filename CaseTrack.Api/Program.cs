@@ -97,6 +97,7 @@ builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddExceptionHandler<NotFoundExceptionHandler>();
 builder.Services.AddExceptionHandler<RequestValidationExceptionHandler>();
 builder.Services.AddExceptionHandler<ConcurrencyConflictExceptionHandler>();
+builder.Services.AddExceptionHandler<UniqueConstraintViolationExceptionHandler>();
 
 builder.Services.AddOptions<OverdueScanOptions>().BindConfiguration("OverdueScan");
 

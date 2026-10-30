@@ -25,10 +25,11 @@ internal sealed class ConcurrencyConflictExceptionHandler : IExceptionHandler
         {
             return false;
         }
+        // 前端顯示 detail，所以「該怎麼做」要寫在 detail；例外本身的訊息只寫進 log
         var problemDetails = new ProblemDetails
         {
-            Title = "案件已被其他人修改，請重新整理後再試",
-            Detail = concurrencyConflictException.Message,
+            Title = "資料已被修改",
+            Detail = "案件已被其他人修改，請重新整理後再試",
             Status = StatusCodes.Status409Conflict
         };
         httpContext.Response.StatusCode = StatusCodes.Status409Conflict;

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using CaseTrack.Application.Auditing;
 using CaseTrack.Application.Authorization;
 using CaseTrack.Application.Common;
@@ -87,6 +88,9 @@ public class AdminApiTests : IClassFixture<CaseTrackApiFactory>
             new { name = "新名稱" }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        // 前端直接顯示 detail，要是中文，而且不含 Id
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("找不到這個單位", problem.RootElement.GetProperty("detail").GetString());
     }
 
     // 停用後不能再分派，但仍然在單位清單上（舊案件要能顯示名稱）；重新啟用後又可以分派

@@ -99,6 +99,28 @@ public class CasePersistenceTests
         Assert.Null(request.SubmittedAt);
     }
 
+    // 經過 IUnitOfWork（Application 用的介面）存檔時，資料庫的錯誤要轉成 Application 的例外，
+    // Handler 不需要認識 DbUpdateException、SqlException
+    [Fact]
+    public async Task UnitOfWorkSave_WithDuplicateCaseNumber_ThrowsUniqueConstraintViolation()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var caseNumber = TestData.NewCaseNumber();
+        await using (var firstContext = _fixture.CreateContext())
+        {
+            firstContext.Cases.Add(new Case(caseNumber, "路燈不亮", "中山路路燈故障",
+                TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []));
+            await ((IUnitOfWork)firstContext).SaveChangesAsync(cancellationToken);
+        }
+
+        await using var secondContext = _fixture.CreateContext();
+        secondContext.Cases.Add(new Case(caseNumber, "水管破裂", "中山路水管破裂",
+            TestData.Petitioner, TestData.SubmittedBy, TestData.SubmittedAt, []));
+
+        await Assert.ThrowsAsync<UniqueConstraintViolationException>(
+            () => ((IUnitOfWork)secondContext).SaveChangesAsync(cancellationToken));
+    }
+
     [Fact]
     public async Task SaveChanges_WithDuplicateCaseNumber_ThrowsUniqueViolation()
     {
